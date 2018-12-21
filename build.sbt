@@ -1,5 +1,5 @@
 name := "vk-dumper"
-version := "0.1"
+version := "0.2"
 scalaVersion := "2.12.8"
 
 val akkaV = "2.5.18"
