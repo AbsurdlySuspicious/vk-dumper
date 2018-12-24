@@ -4,16 +4,17 @@ import java.io.File
 
 import akka.actor.ActorSystem
 import com.typesafe.scalalogging.LazyLogging
-import org.scalatest.{
-  BeforeAndAfterAll,
-  BeforeAndAfterEachTestData,
-  FlatSpec,
-  Matchers
-}
+import org.scalatest.{BeforeAndAfterAll, BeforeAndAfterEachTestData, FlatSpec, Matchers}
+import vkdumper.ApiData.{ApiChatSettings, ApiConvId, ApiConversation}
 import vkdumper.Utils.CachedMsgProgress
+import org.json4s.jackson.Serialization
+import org.json4s.jackson.Serialization._
+import org.json4s._
+import org.json4s.jackson.JsonMethods._
 
 import scala.concurrent.{Await, Awaitable}
 import scala.concurrent.duration._
+import scala.io.Source
 
 class DBClass
     extends FlatSpec
@@ -22,6 +23,7 @@ class DBClass
     with LazyLogging {
 
   implicit val sys: ActorSystem = ActorSystem()
+  implicit val formats: Formats = Serialization.formats(NoTypeHints)
 
   def await[T](a: Awaitable[T]): T = Await.result(a, 5.seconds)
   def awaitU(as: Awaitable[Any]*): Unit = as.foreach(await)
@@ -95,6 +97,34 @@ class DBClass
 
     input2.foreach(addf)
     ret2.flatMap(getf) shouldBe ret2
+
+  }
+
+  it should "dump conversation list to file" in {
+    val input1 = List(
+      ApiConversation(ApiConvId("user", 101), None),
+      ApiConversation(ApiConvId("user", 105), None),
+      ApiConversation(ApiConvId("chat", 201), Some(ApiChatSettings("foo", 5, "bar", None)))
+    )
+
+    val input2 = (1 to 8)
+      .map(n => ApiConversation(ApiConvId("user", 300 + n), None))
+      .toList
+
+
+    def readf: String =
+      Source.fromFile(db.fp.convLog).getLines().mkString("\n")
+
+    def sr(in: List[ApiConversation]) =
+      in.map(write(_)).mkString(",")
+
+    val f1 = db.writeConversations(input1)
+    awaitU(f1)
+    readf shouldBe sr(input1)
+
+    val f2 = db.writeConversations(input2)
+    awaitU(f2)
+    readf shouldBe sr(input2)
 
   }
 
