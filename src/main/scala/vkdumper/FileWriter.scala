@@ -1,6 +1,6 @@
 package vkdumper
 
-import java.io.{FileOutputStream, PrintWriter}
+import java.io.{File, FileOutputStream, PrintWriter}
 
 import Utils._
 import akka.actor.Actor
@@ -18,11 +18,19 @@ case object CloseFile extends WriterMsg
 
 class FileWriter(path: String, append: Boolean) extends Actor {
 
-  val out = new FileOutputStream(path, append)
+  val file = new File(path)
+  val out = new FileOutputStream(file, append)
   val pw = new PrintWriter(out)
 
-  def writeEntry(e: String): Unit =
-    pw.print(s"$e,")
+  var cleanFile = file.length < 2
+
+  def writeEntry(e: String): Unit = {
+    val sep = if (!cleanFile) "," else {
+      cleanFile = false
+      ""
+    }
+    pw.print(s"$sep$e")
+  }
 
   def receive = {
     case WriteBatch(es, p) =>
