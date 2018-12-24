@@ -5,7 +5,14 @@ import java.io.File
 import akka.actor.ActorSystem
 import com.typesafe.scalalogging.LazyLogging
 import org.scalatest._
-import vkdumper.ApiData.{ApiChatSettings, ApiConvId, ApiConversation, ApiObject, ApiUser}
+import vkdumper.ApiData.{
+  ApiChatSettings,
+  ApiConvId,
+  ApiConversation,
+  ApiMessage,
+  ApiObject,
+  ApiUser
+}
 import vkdumper.Utils.CachedMsgProgress
 import org.json4s.jackson.Serialization
 import org.json4s.jackson.Serialization._
@@ -123,13 +130,13 @@ class DBTest
     val input1 = List(
       ApiConversation(ApiConvId("user", 101), None),
       ApiConversation(ApiConvId("user", 105), None),
-      ApiConversation(ApiConvId("chat", 201), Some(ApiChatSettings("foo", 5, "bar", None)))
+      ApiConversation(ApiConvId("chat", 201),
+                      Some(ApiChatSettings("foo", 5, "bar", None)))
     )
 
     val input2 = (1 to 8)
       .map(n => ApiConversation(ApiConvId("user", 300 + n), None))
       .toList
-
 
     def readf: String =
       readFile(db.fp.convLog)
@@ -172,6 +179,33 @@ class DBTest
 
     db.profileIds.iterator.asScala.toList shouldBe retIds
     readFile(db.fp.profileLog) shouldBe retLog
+  }
+
+  it should "dump messages to log" in {
+
+    def msg = ApiMessage(
+      rnd.nextLong(),
+      100 + rnd.nextInt(5),
+      rnd.nextInt().toLong,
+      0,
+      200 + rnd.nextInt(5),
+      rnd.nextString(100),
+      0,
+      None,
+      Nil,
+      Nil
+    )
+
+    val set = (1 to 10).map(_ => msg).toList
+    val in1 :: in2 :: Nil = set.grouped(5).toList
+
+    val f1 = db.addMessages(in1)
+    awaitU(f1)
+
+    val f2 = db.addMessages(in2)
+    awaitU(f2)
+
+    readFile(db.fp.msgLog) shouldBe sr(set)
   }
 
 }
