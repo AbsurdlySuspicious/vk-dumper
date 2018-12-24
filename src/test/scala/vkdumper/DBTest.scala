@@ -16,7 +16,7 @@ import scala.concurrent.{Await, Awaitable}
 import scala.concurrent.duration._
 import scala.io.Source
 
-class DBClass
+class DBTest
     extends FlatSpec
     with Matchers
     with BeforeAndAfterAll
