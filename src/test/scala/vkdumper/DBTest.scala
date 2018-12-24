@@ -34,14 +34,24 @@ class DBTest
   }
 
   val dbp = DBDefault //DBMem
-  val db = new DB(FilePath(1, "tests_temp", dbp))
+  val dbBase = "tests_temp"
+  val dbUid = 1
 
-  val cleanUpFilesAfter = true
+  val db = {
+    logger.info("clean up files [start]")
+    cleanUp()
+    new DB(FilePath(dbUid, dbBase, dbp))
+  }
+
+  val cleanUpFilesAfter = false
 
   def cleanUp(): Unit = {
-    val ud = db.fp.uidRootFile
-    ud.listFiles.foreach(_.delete)
-    ud.delete()
+    val base = new File(dbBase)
+    val ud = new File(base, s"$dbUid")
+    if (base.exists && ud.exists) {
+      ud.listFiles.foreach(_.delete)
+      ud.delete()
+    }
   }
 
   override def afterAll(): Unit = {
@@ -127,5 +137,7 @@ class DBTest
     readf shouldBe sr(input2)
 
   }
+
+
 
 }
