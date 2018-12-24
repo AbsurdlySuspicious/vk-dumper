@@ -16,7 +16,6 @@ import scala.collection.JavaConverters._
 
 import scala.concurrent.Future
 
-
 sealed trait DBPathOpt
 case object DBDefault extends DBPathOpt
 
@@ -24,7 +23,9 @@ sealed trait DBPath extends DBPathOpt
 case class DBFile(path: String) extends DBPath
 case object DBMem extends DBPath
 
-case class FilePath(uid: Int, baseDir: String, private val overrideDb: DBPathOpt = DBDefault) {
+case class FilePath(uid: Int,
+                    baseDir: String,
+                    private val overrideDb: DBPathOpt = DBDefault) {
 
   private def root(p: String) = s"$baseDir/$uid/$p"
 
@@ -52,19 +53,18 @@ case class FilePath(uid: Int, baseDir: String, private val overrideDb: DBPathOpt
 
 }
 
-class DB(fp: FilePath)(implicit fac: ActorRefFactory) {
+class DB(val fp: FilePath)(implicit fac: ActorRefFactory) {
 
   implicit val formats: Formats = Serialization.formats(NoTypeHints)
 
   fp.bootstrap()
 
   val dbm = fp.dbPath match {
-    case DBFile(path) => DBMaker.fileDB(path)
+    case DBFile(path) => DBMaker.fileDB(path).fileMmapEnableIfSupported()
     case DBMem        => DBMaker.memoryDB()
   }
 
   val db = dbm
-    .fileMmapEnableIfSupported()
     .transactionEnable()
     .closeOnJvmShutdown()
     .make()
@@ -122,7 +122,8 @@ class DB(fp: FilePath)(implicit fac: ActorRefFactory) {
 
 }
 
-class FileWriterWrapper(path: String, append: Boolean = true)(implicit fac: ActorRefFactory) {
+class FileWriterWrapper(path: String, append: Boolean = true)(
+    implicit fac: ActorRefFactory) {
 
   val props = Props(new FileWriter(path, append))
   val ref = fac.actorOf(props)
