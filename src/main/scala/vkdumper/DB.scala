@@ -7,11 +7,12 @@ import org.json4s.jackson.Serialization
 import org.json4s.jackson.Serialization._
 import org.json4s._
 import org.json4s.jackson.JsonMethods._
-import org.mapdb.{DBMaker, Serializer}
+import org.mapdb.{BTreeMap, DBMaker, Serializer}
 import vkdumper.ApiData.{ApiConversation, ApiMessage, ApiUser}
 import vkdumper.Utils.{CMPUtils, CachedMsgProgress}
 import EC._
 import monix.eval.Task
+import scala.collection.JavaConverters._
 
 import scala.concurrent.Future
 
@@ -79,6 +80,7 @@ class DB(fp: FilePath)(implicit fac: ActorRefFactory) {
     .keySerializer(Serializer.INTEGER)
     .valueSerializer(Serializer.STRING)
     .createOrOpen()
+    .asScala
 
   val msgFile = new FileWriterWrapper(fp.msgLog)
   val userFile = new FileWriterWrapper(fp.profileLog)
@@ -89,26 +91,26 @@ class DB(fp: FilePath)(implicit fac: ActorRefFactory) {
   }
 
   def getProgress(peer: Int): Option[CachedMsgProgress] =
-    Option(progress.get(peer)).map(CMPUtils.fromString)
+    progress.get(peer).map(CMPUtils.fromString)
 
-  def addProfiles(in: Iterator[ApiUser]): Future[Unit] = {
-    val json = in.map(write(_)).toIterable
-    val ids = in.map(_.id)
+  def addProfiles(in: Iterable[ApiUser]): Future[Unit] = {
+    val json = in.view.map(write(_))
+    val ids = in.view.map(_.id)
     def add(id: Int) = profileIds.add(id)
     userFile
       .writeAll(json)
       .map(_ => ids.foreach(add))
   }
 
-  def writeConversations(in: Iterator[ApiConversation]): Future[Unit] = {
+  def writeConversations(in: Iterable[ApiConversation]): Future[Unit] = {
     val fw = new FileWriterWrapper(fp.convLog, append = false)
-    val json = in.map(write(_)).toIterable
+    val json = in.view.map(write(_))
     fw.writeAll(json)
       .map(_ => fw.close())
   }
 
-  def addMessages(msgs: Iterator[ApiMessage]): Future[Unit] = {
-    val json = msgs.map(write(_)).toIterable
+  def addMessages(msgs: Iterable[ApiMessage]): Future[Unit] = {
+    val json = msgs.view.map(write(_))
     msgFile.writeAll(json)
   }
 
