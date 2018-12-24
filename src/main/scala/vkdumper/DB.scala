@@ -11,9 +11,10 @@ import org.mapdb.{BTreeMap, DBMaker, Serializer}
 import vkdumper.ApiData.{ApiConversation, ApiMessage, ApiUser}
 import vkdumper.Utils.{CMPUtils, CachedMsgProgress}
 import EC._
+import com.typesafe.scalalogging.LazyLogging
 import monix.eval.Task
-import scala.collection.JavaConverters._
 
+import scala.collection.JavaConverters._
 import scala.concurrent.Future
 
 sealed trait DBPathOpt
@@ -53,7 +54,7 @@ case class FilePath(uid: Int,
 
 }
 
-class DB(val fp: FilePath)(implicit fac: ActorRefFactory) {
+class DB(val fp: FilePath)(implicit fac: ActorRefFactory) extends LazyLogging {
 
   implicit val formats: Formats = Serialization.formats(NoTypeHints)
 
@@ -93,14 +94,22 @@ class DB(val fp: FilePath)(implicit fac: ActorRefFactory) {
   def getProgress(peer: Int): Option[CachedMsgProgress] =
     progress.get(peer).map(CMPUtils.fromString)
 
-  def addProfiles(in: Iterable[ApiUser]): Future[Unit] = {
-    val json = in.view.map(write(_))
-    val ids = in.view.map(_.id)
-    def add(id: Int) = profileIds.add(id)
-    userFile
-      .writeAll(json)
-      .map(_ => ids.foreach(add))
-  }
+  def hasProfile(peer: Int): Boolean =
+    profileIds.contains(peer)
+
+  def addProfiles(in: Iterable[ApiUser]): Future[Unit] =
+    Future(in.filter(u => !hasProfile(u.id)).toList)
+      .flatMap { lst =>
+        val ft = lst.view
+        val json = ft.map(write(_))
+        val ids = ft.map(_.id)
+        userFile
+          .writeAll(json)
+          .map { _ =>
+            ids.foreach(profileIds.add(_))
+            db.commit()
+          }
+      }
 
   def writeConversations(in: Iterable[ApiConversation]): Future[Unit] = {
     val fw = new FileWriterWrapper(fp.convLog, append = false)

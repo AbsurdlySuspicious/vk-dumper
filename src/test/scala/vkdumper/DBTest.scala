@@ -4,17 +4,19 @@ import java.io.File
 
 import akka.actor.ActorSystem
 import com.typesafe.scalalogging.LazyLogging
-import org.scalatest.{BeforeAndAfterAll, BeforeAndAfterEachTestData, FlatSpec, Matchers}
-import vkdumper.ApiData.{ApiChatSettings, ApiConvId, ApiConversation}
+import org.scalatest._
+import vkdumper.ApiData.{ApiChatSettings, ApiConvId, ApiConversation, ApiObject, ApiUser}
 import vkdumper.Utils.CachedMsgProgress
 import org.json4s.jackson.Serialization
 import org.json4s.jackson.Serialization._
 import org.json4s._
 import org.json4s.jackson.JsonMethods._
 
-import scala.concurrent.{Await, Awaitable}
+import scala.collection.JavaConverters._
+import scala.concurrent.{Await, Awaitable, Future}
 import scala.concurrent.duration._
 import scala.io.Source
+import scala.util.Random
 
 class DBTest
     extends FlatSpec
@@ -24,6 +26,7 @@ class DBTest
 
   implicit val sys: ActorSystem = ActorSystem()
   implicit val formats: Formats = Serialization.formats(NoTypeHints)
+  val rnd = new Random()
 
   def await[T](a: Awaitable[T]): T = Await.result(a, 5.seconds)
   def awaitU(as: Awaitable[Any]*): Unit = as.foreach(await)
@@ -32,6 +35,12 @@ class DBTest
     val l = rng.map { case (x, y) => x.toLong -> y.toLong }.toList
     CachedMsgProgress(l)
   }
+
+  def readFile(p: String): String =
+    Source.fromFile(p).getLines().mkString("\n")
+
+  def sr(in: List[ApiObject]) =
+    in.map(write(_)).mkString(",")
 
   val dbp = DBDefault //DBMem
   val dbBase = "tests_temp"
@@ -123,10 +132,7 @@ class DBTest
 
 
     def readf: String =
-      Source.fromFile(db.fp.convLog).getLines().mkString("\n")
-
-    def sr(in: List[ApiConversation]) =
-      in.map(write(_)).mkString(",")
+      readFile(db.fp.convLog)
 
     val f1 = db.writeConversations(input1)
     awaitU(f1)
@@ -135,9 +141,37 @@ class DBTest
     val f2 = db.writeConversations(input2)
     awaitU(f2)
     readf shouldBe sr(input2)
-
   }
 
+  it should "dump profiles to log and update id set" in {
 
+    def user(id: Int, name: String) =
+      ApiUser(name, "", id, None)
+
+    val input1 = List(
+      user(101, "a"),
+      user(102, "b"),
+      user(103, "c"),
+      user(104, "d")
+    )
+
+    val input2 = List(
+      user(102, "e"),
+      user(105, "f")
+    )
+
+    val f1 = db.addProfiles(input1)
+    awaitU(f1)
+
+    val f2 = db.addProfiles(input2)
+    awaitU(f2)
+
+    val retIds = input1.map(_.id) :+ 105
+    val retUsers = input1 :+ user(105, "f")
+    val retLog = sr(retUsers)
+
+    db.profileIds.iterator.asScala.toList shouldBe retIds
+    readFile(db.fp.profileLog) shouldBe retLog
+  }
 
 }
