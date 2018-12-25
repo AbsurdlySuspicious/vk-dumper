@@ -8,8 +8,9 @@ import scala.collection.concurrent.TrieMap
 import scala.concurrent.Future
 import scala.collection.immutable.Iterable
 
-case class ConvProgress(last: Int, convN: Int, convCount: Int) {
-  val counter = con.counter(convCount)(convN + 1)
+case class ConvPos(total: Int, convN: Int, convCount: Int) {
+  val counter = con.counter(convCount, convN + 1)
+  val cs = s"$counter/$convCount"
 }
 
 sealed trait WorkInput
@@ -18,7 +19,7 @@ case object TerminateFlow extends WorkInput
 
 case class Chunk(peer: Int, offset: Int, count: Int) extends WorkInput
 
-case class Conv(peer: Int, startOffset: Int, totalCount: Int, apiData: Option[ApiConversation]) {
+case class Conv(peer: Int, startOffset: Int, totalCount: Int, apiData: Option[ApiConversation], pos: ConvPos) {
 
   def stream: Stream[WorkInput] = {
     val step = Const.msgOffsetStep
