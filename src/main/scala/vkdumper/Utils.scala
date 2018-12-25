@@ -3,8 +3,9 @@ package vkdumper
 import monix.execution.Scheduler
 
 import scala.annotation.tailrec
-import scala.concurrent.ExecutionContext
+import scala.concurrent.{Await, Awaitable, ExecutionContext}
 import scala.util.matching.Regex
+import scala.concurrent.duration._
 import Utils._
 
 object EC {
@@ -102,6 +103,9 @@ object Utils {
         case (_, true)      => mergeRanges(cf -> et, rem, hl)
       }
   }
+
+  def await[T](a: Awaitable[T]): T = Await.result(a, 5.seconds)
+  def awaitU(as: Awaitable[Any]*): Unit = as.foreach(await)
 
   object CMPUtils {
     val re = new Regex("""\((\d+)_(\d+)\)""")

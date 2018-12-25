@@ -13,7 +13,7 @@ import vkdumper.ApiData.{
   ApiObject,
   ApiUser
 }
-import vkdumper.Utils.CachedMsgProgress
+import vkdumper.Utils._
 import org.json4s.jackson.Serialization
 import org.json4s.jackson.Serialization._
 import org.json4s._
@@ -34,9 +34,6 @@ class DBTest
   implicit val sys: ActorSystem = ActorSystem()
   implicit val formats: Formats = Serialization.formats(NoTypeHints)
   val rnd = new Random()
-
-  def await[T](a: Awaitable[T]): T = Await.result(a, 5.seconds)
-  def awaitU(as: Awaitable[Any]*): Unit = as.foreach(await)
 
   def cmsg(rng: (Int, Int)*) =
     CachedMsgProgress(rng.toList)

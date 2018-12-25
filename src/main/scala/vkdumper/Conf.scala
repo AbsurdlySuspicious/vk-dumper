@@ -21,9 +21,6 @@ case class Cfg(
     commonPar: Int = 4,
     throttleCount: Int = 3,
     throttlePeriod: Int = 1,
-    dbPath: String = "private/h2db",
-    //dbUser: String = "vkdumper",
-    //dbPasswd: String = "vkdumper",
     token: String
 ) {
 
