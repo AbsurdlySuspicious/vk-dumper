@@ -27,3 +27,14 @@ import Utils._
 import monix.eval.Task
 import Const._
 
+class Flows(db: DB, api: ApiOperator)(implicit sys: ActorSystem) {
+
+  implicit val mat: ActorMaterializer = ActorMaterializer()
+
+  def convFlow = {
+
+
+
+  }
+
+}
