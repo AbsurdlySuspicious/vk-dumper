@@ -62,9 +62,5 @@ object Exp extends App with LazyLogging {
 
   val flow = new DumperFlow(null, null, null)
 
-  val f = flow.testFlow
-  awaitU(60.seconds, f)
-
   sys.terminate()
-
 }

@@ -143,33 +143,4 @@ class DumperFlow(db: DB, api: ApiOperator, cfg: Cfg)(implicit sys: ActorSystem)
     pr.future
   }
 
-  def testFlow: Future[Done] = {
-
-    val decider: Supervision.Decider = { _ =>
-      Supervision.restart
-    }
-
-    implicit val mat: ActorMaterializer = ActorMaterializer(
-      ActorMaterializerSettings(sys).withSupervisionStrategy(decider)
-    )
-
-    implicit val ec: ExecutionContextExecutorService =
-      ExecutionContext.fromExecutorService(new ForkJoinPool(10))
-
-    Source(1 to 20)
-      .buffer(3, OverflowStrategy.backpressure)
-      .throttle(1, 0.5.seconds)
-      .mapAsync(4) {
-        case 5 =>
-          Future {
-            Thread.sleep(5000)
-            throw new Exception("mda")
-            "r: 5"
-          }(ec)
-        case x => Future.successful(s"r: $x")
-      }
-      .recover { case _ => "shit" }
-      .runWith(Sink.foreach(println))
-  }
-
 }
