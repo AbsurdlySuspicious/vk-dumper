@@ -115,12 +115,16 @@ class DumperFlow(db: DB, api: ApiOperator, cfg: Cfg)(implicit sys: ActorSystem)
       .iterate(0)(_ + step)
       .takeWhile(_ < count)
 
-    val sink = Sink.onComplete(_ => pr.success(q))
+    val sink = Sink.onComplete { _ =>
+      prog.convDone(count)
+      pr.success(q)
+    }
 
     Source(stream)
       .throttle(thrCount, thrTime)
       .backpressureTimeout(bpDelay)
       .mapAsync(1) { o =>
+        prog.conv(o, count)
         api
           .getConversations(o, step)
           .flatMap {
@@ -135,7 +139,6 @@ class DumperFlow(db: DB, api: ApiOperator, cfg: Cfg)(implicit sys: ActorSystem)
 
     // todo
     //  check last_message / chat msg count inclusion
-    //  progress calls
 
     pr.future
   }
