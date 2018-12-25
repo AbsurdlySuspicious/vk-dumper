@@ -93,8 +93,7 @@ class UtilTest extends FlatSpec with Matchers with LazyLogging {
 
   "CachedMsgProgress" should "serialize and deserialize" in {
 
-    implicit def long(i: Int): Long = i.toLong
-    def cm(p: (Long, Long)*) = CachedMsgProgress(p.toList)
+    def cm(p: (Int, Int)*) = CachedMsgProgress(p.toList)
 
     //val ts = CMPUtils.fromString("foobar")
     //println("ts: " + ts)

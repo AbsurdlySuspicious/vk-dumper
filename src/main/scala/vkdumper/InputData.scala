@@ -8,7 +8,7 @@ import scala.collection.concurrent.TrieMap
 import scala.concurrent.Future
 import scala.collection.immutable.Iterable
 
-case class ConvProgress(last: Long, convN: Long, convCount: Long) {
+case class ConvProgress(last: Int, convN: Int, convCount: Int) {
   val counter = con.counter(convCount)(convN + 1)
 }
 

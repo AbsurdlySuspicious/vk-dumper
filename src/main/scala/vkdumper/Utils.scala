@@ -22,10 +22,10 @@ object Utils {
     def np(m: Any): Unit = print(s"\n$m")
     def rp(m: Any): Unit = print(s"\r$m")
 
-    def counter(max: Long): Long => String = {
+    def counter(max: Int): Int => String = {
       val ms = max.toString
       val ml = ms.length
-      val f = { c: Long =>
+      val f = { c: Int =>
         val cs = c.toString
         val pc = {
           val l = ml - cs.length
@@ -46,7 +46,7 @@ object Utils {
     }
   }
 
-  type Rng = (Long, Long)
+  type Rng = (Int, Int)
 
   def rngCheck(rng: Rng*): Unit = rng foreach {
     case (a, b) if a > b => throw new ArithmeticException("Bad range")
@@ -86,15 +86,15 @@ object Utils {
         .filter(_.nonEmpty)
         .map(rep)
         .map { m =>
-          m.group(1).toLong ->
-            m.group(2).toLong
+          m.group(1).toInt ->
+            m.group(2).toInt
         }
         .toList
       CachedMsgProgress(rng)
     }
   }
 
-  case class CachedMsgProgress(ranges: List[(Long, Long)]) {
+  case class CachedMsgProgress(ranges: List[Rng]) {
     def stringRepr: String =
       ranges
         .map { case (s, e) => s"(${s}_$e)" }

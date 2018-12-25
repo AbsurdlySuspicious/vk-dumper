@@ -38,10 +38,8 @@ class DBTest
   def await[T](a: Awaitable[T]): T = Await.result(a, 5.seconds)
   def awaitU(as: Awaitable[Any]*): Unit = as.foreach(await)
 
-  def cmsg(rng: (Int, Int)*): CachedMsgProgress = {
-    val l = rng.map { case (x, y) => x.toLong -> y.toLong }.toList
-    CachedMsgProgress(l)
-  }
+  def cmsg(rng: (Int, Int)*) =
+    CachedMsgProgress(rng.toList)
 
   def readFile(p: String): String =
     Source.fromFile(p).getLines().mkString("\n")
@@ -186,11 +184,10 @@ class DBTest
     def msg = ApiMessage(
       rnd.nextLong(),
       100 + rnd.nextInt(5),
-      rnd.nextInt().toLong,
+      rnd.nextInt(),
       0,
       200 + rnd.nextInt(5),
       rnd.nextString(100),
-      0,
       None,
       Nil,
       Nil

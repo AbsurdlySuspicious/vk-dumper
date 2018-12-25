@@ -49,10 +49,6 @@ object ApiData extends LazyLogging {
 
   case class ResErrWrp(f: ResErr) extends Exception
 
-  // todo
-  //  name cache + db +2
-  // do all error handling on stream prob.
-
   def apiDecode[T: Manifest]: EarlyResp => Result[T] = { in =>
     (in.body, in.code) match {
       case (Left(_), code) => HttpError(code)
@@ -87,11 +83,10 @@ object ApiData extends LazyLogging {
   case class ApiMessage(
       date: Long,
       from_id: Int,
-      id: Long,
+      id: Int,
       out: Int,
       peer_id: Int,
       text: String,
-      conversation_message_id: Long,
       action: Option[ApiChatAction],
       attachments: List[JObject],
       fwd_messages: List[JObject]
