@@ -7,6 +7,11 @@ import scala.concurrent.{Await, Awaitable, ExecutionContext}
 import scala.util.matching.Regex
 import scala.concurrent.duration._
 import Utils._
+import org.json4s.JsonDSL._
+import org.json4s.{DefaultReaders, Formats, NoTypeHints}
+import org.json4s.jackson.JsonMethods._
+import org.json4s.jackson.Serialization
+import org.json4s.jackson.Serialization._
 
 import scala.runtime.ScalaRunTime
 
@@ -108,42 +113,39 @@ object Utils {
   }
 
   def await[T](a: Awaitable[T]): T = awaitT(5.seconds, a)
-  def awaitT[T](time: FiniteDuration, a: Awaitable[T]): T = Await.result(a, time)
+  def awaitT[T](time: FiniteDuration, a: Awaitable[T]): T =
+    Await.result(a, time)
   def awaitU(as: Awaitable[Any]*): Unit = as.foreach(await)
-  def awaitU(time: FiniteDuration, as: Awaitable[Any]*): Unit = as.foreach(awaitT(time, _))
+  def awaitU(time: FiniteDuration, as: Awaitable[Any]*): Unit =
+    as.foreach(awaitT(time, _))
 
   trait ProductToString { this: Product =>
     override def toString = ScalaRunTime._toString(this)
   }
 
   object CMPUtils {
-    val re = new Regex("""\((\d+)_(\d+)\)""")
+    implicit val formats: Formats = Serialization.formats(NoTypeHints)
+    import DefaultReaders._
 
     def fromString(str: String) = {
-      def rep(s: String) = re.findAllIn(s)
+      val j = parse(str)
 
-      val lm :: rngS :: Nil = str.split(":").toList
-
-      val rng = rngS
-        .split(",")
-        .filter(_.nonEmpty)
-        .map(rep)
-        .map { m =>
-          m.group(1).toInt ->
-            m.group(2).toInt
-        }
-        .toList
-
-      CachedMsgProgress(rng, lm.toInt)
+      CachedMsgProgress(
+        (j \ "r").extract[List[List[Int]]].map { case f :: t :: Nil => f -> t },
+        (j \ "last").as[Int]
+      )
     }
   }
 
   case class CachedMsgProgress(ranges: List[Rng], lastMsgId: Int) {
+    import CMPUtils._
+
     def stringRepr: String = {
-      val r = ranges
-        .map { case (s, e) => s"(${s}_$e)" }
-        .mkString(",")
-      s"$lastMsgId:$r"
+      val j = (
+        "r" -> ranges.map { case (f, t) => List(f, t) }
+      ) ~ ("last" -> lastMsgId)
+
+      compact(render(j))
     }
   }
 

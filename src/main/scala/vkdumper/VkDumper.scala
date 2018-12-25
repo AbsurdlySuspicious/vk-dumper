@@ -12,6 +12,11 @@ import Utils._
 import scala.concurrent.duration._
 import scala.runtime.ScalaRunTime
 
+import org.json4s.jackson.Serialization
+import org.json4s.jackson.Serialization._
+import org.json4s._
+import org.json4s.jackson.JsonMethods._
+
 object VkDumper extends App with LazyLogging {
 
   implicit val codec: Codec = Codec.UTF8
@@ -52,15 +57,10 @@ object VkDumper extends App with LazyLogging {
 
 object Exp extends App with LazyLogging {
 
-  case class Foo(a: Int) extends Exception with ProductToString
-  case class Bar(a: Int) extends Throwable with ProductToString
+  //implicit val sys: ActorSystem = ActorSystem()
+  //val flow = new DumperFlow(null, null, null)
 
-  println(s"foo: ${Foo(1337)}")
-  println(s"bar: ${Bar(1337)}")
+  implicit val formats: Formats = Serialization.formats(NoTypeHints)
 
-  implicit val sys: ActorSystem = ActorSystem()
-
-  val flow = new DumperFlow(null, null, null)
-
-  sys.terminate()
+  //sys.terminate()
 }

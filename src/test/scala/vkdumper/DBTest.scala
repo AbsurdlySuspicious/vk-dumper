@@ -35,8 +35,8 @@ class DBTest
   implicit val formats: Formats = Serialization.formats(NoTypeHints)
   val rnd = new Random()
 
-  def cmsg(rng: (Int, Int)*) =
-    CachedMsgProgress(rng.toList)
+  def cmsg(m: Int, rng: (Int, Int)*) =
+    CachedMsgProgress(rng.toList, m)
 
   def readFile(p: String): String =
     Source.fromFile(p).getLines().mkString("\n")
@@ -90,16 +90,16 @@ class DBTest
     type LT = (Int, CachedMsgProgress)
 
     val input = List(
-      100 -> cmsg(10 -> 20, 1337 -> 2000),
-      101 -> cmsg(1336 -> 1337),
-      105 -> cmsg(10 -> 15, 20 -> 30, 40 -> 50),
-      108 -> cmsg()
+      100 -> cmsg(1, 10 -> 20, 1337 -> 2000),
+      101 -> cmsg(2, 1336 -> 1337),
+      105 -> cmsg(3, 10 -> 15, 20 -> 30, 40 -> 50),
+      108 -> cmsg(4)
     )
 
     val input2 = List(
-      100 -> cmsg(1 -> 2),
-      105 -> cmsg(2 -> 3),
-      109 -> cmsg(3 -> 4)
+      100 -> cmsg(5, 1 -> 2),
+      105 -> cmsg(6, 2 -> 3),
+      109 -> cmsg(7, 3 -> 4)
     )
 
     val ret2 =
