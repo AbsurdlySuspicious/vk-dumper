@@ -98,7 +98,7 @@ class DumperFlow(db: DB, api: ApiOperator, cfg: Cfg)(implicit sys: ActorSystem)
 
   }
 
-  type ConvFT = ConcurrentLinkedQueue[ApiConversation]
+  type ConvFT = ConcurrentLinkedQueue[ApiConvListItem]
 
   def convFlow(count: Int): Future[ConvFT] = {
     val (step, thrCount, thrTime) = (
@@ -107,8 +107,7 @@ class DumperFlow(db: DB, api: ApiOperator, cfg: Cfg)(implicit sys: ActorSystem)
       cfg.thrTime
     )
 
-    val q = new ConcurrentLinkedQueue[ApiConversation]
-
+    val q = new ConvFT
     val pr = Promise[ConvFT]()
 
     val stream = Stream
@@ -134,7 +133,7 @@ class DumperFlow(db: DB, api: ApiOperator, cfg: Cfg)(implicit sys: ActorSystem)
           .onErrorRestartLoop(mRetry)(retryFun)
           .runToFuture
       }
-      .map(a => q.addAll(a.items.map(_.conversation).asJavaCollection))
+      .map(a => q.addAll(a.items.asJavaCollection))
       .runWith(sink)
 
     // todo

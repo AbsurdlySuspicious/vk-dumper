@@ -121,7 +121,10 @@ object Utils {
 
     def fromString(str: String) = {
       def rep(s: String) = re.findAllIn(s)
-      val rng = str
+
+      val lm :: rngS :: Nil = str.split(":").toList
+
+      val rng = rngS
         .split(",")
         .filter(_.nonEmpty)
         .map(rep)
@@ -130,15 +133,18 @@ object Utils {
             m.group(2).toInt
         }
         .toList
-      CachedMsgProgress(rng)
+
+      CachedMsgProgress(rng, lm.toInt)
     }
   }
 
-  case class CachedMsgProgress(ranges: List[Rng]) {
-    def stringRepr: String =
-      ranges
+  case class CachedMsgProgress(ranges: List[Rng], lastMsgId: Int) {
+    def stringRepr: String = {
+      val r = ranges
         .map { case (s, e) => s"(${s}_$e)" }
         .mkString(",")
+      s"$lastMsgId:$r"
+    }
   }
 
 }

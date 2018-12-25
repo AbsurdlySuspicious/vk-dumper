@@ -19,7 +19,10 @@ case object TerminateFlow extends WorkInput
 
 case class Chunk(peer: Int, offset: Int, count: Int) extends WorkInput
 
-case class Conv(peer: Int, startOffset: Int, totalCount: Int, apiData: Option[ApiConversation], pos: ConvPos) {
+case class Conv(peer: Int, startOffset: Int, totalCount: Int, lastMsgId: Int, convNC: (Int, Int)) {
+
+  val (convN, convCount) = convNC
+  val pos = ConvPos(totalCount, convN, convCount)
 
   def stream: Stream[WorkInput] = {
     val step = Const.msgOffsetStep
