@@ -12,63 +12,23 @@ case class ConvProgress(last: Long, convN: Long, convCount: Long) {
   val counter = con.counter(convCount)(convN + 1)
 }
 
-
 sealed trait WorkInput
 
-sealed trait InnerInput
+case object TerminateFlow extends WorkInput
 
-sealed trait SvcInput extends InnerInput
-case object TerminateFlow extends SvcInput
+case class Chunk(peer: Int, offset: Int, count: Int) extends WorkInput
 
-sealed trait InnerWorkInput extends InnerInput {
-  def id: Long
-}
+case class Conv(peer: Int, startOffset: Int, totalCount: Int, apiData: Option[ApiConversation]) {
 
-case class ConvFromApi(conv: Conversation, fromApi: ApiConversation) extends WorkInput
+  def stream: Stream[WorkInput] = {
+    val step = Const.msgOffsetStep
 
-trait Conversation {
-  def stream: Iterable[InnerInput]
-}
+    val s = Stream
+      .iterate(startOffset)(_ + step)
+      .takeWhile(_ < totalCount)
+      .map(o => Chunk(peer, o, step))
 
-case class ChatChunk(peer: Int, ids: Stream[Long]) extends InnerWorkInput{
-  def id = from
-  def from = ids.head
-  def count = ids.length
-}
-
-case class UserChunk(peer: Int, offset: Int, count: Int) extends InnerWorkInput {
-  def id = offset
-}
-
-case class ConvChat(peer: Int, cidFrom: Long, cidTo: Long, prg: ConvProgress) extends Conversation {
-  override def stream = {
-    val takeBy = msgStep
-
-    val stream = Stream
-      .iterate(cidFrom)(_ + 1)
-      .takeWhile(_ <= cidTo)
-      .grouped(takeBy)
-      .map(g => ChatChunk(peer, g))
-      .to[Iterable]
-
-    stream ++ List(TerminateFlow)
+    s ++ List(TerminateFlow)
   }
-}
 
-
-case class ConvUser(peer: Int, offset: Int, msgCount: Int, prg: ConvProgress) extends Conversation {
-  override def stream = {
-    val takeBy = msgOffsetStep
-
-    val stream = Stream
-      .iterate(offset)(_ + takeBy)
-      .takeWhile(_ < msgCount)
-      .map { chunkOffset =>
-        val delta = msgCount - chunkOffset
-        val count = if (delta < takeBy) delta else takeBy
-        UserChunk(peer, chunkOffset, count)
-      }
-
-    stream ++ List(TerminateFlow)
-  }
 }
