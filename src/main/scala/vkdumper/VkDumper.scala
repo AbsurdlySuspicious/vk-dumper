@@ -2,10 +2,15 @@ package vkdumper
 
 import java.io.File
 
+import akka.actor.ActorSystem
 import com.typesafe.scalalogging.LazyLogging
 
 import scala.io.{Codec, Source}
 import scala.language.postfixOps
+import Utils._
+
+import scala.concurrent.duration._
+import scala.runtime.ScalaRunTime
 
 object VkDumper extends App with LazyLogging {
 
@@ -43,4 +48,23 @@ object VkDumper extends App with LazyLogging {
   }
 
   val cfgP = new Conf(cfgJ)
+}
+
+object Exp extends App with LazyLogging {
+
+  case class Foo(a: Int) extends Exception with ProductToString
+  case class Bar(a: Int) extends Throwable with ProductToString
+
+  println(s"foo: ${Foo(1337)}")
+  println(s"bar: ${Bar(1337)}")
+
+  implicit val sys: ActorSystem = ActorSystem()
+
+  val flow = new DumperFlow(null, null, null)
+
+  val f = flow.testFlow
+  awaitU(60.seconds, f)
+
+  sys.terminate()
+
 }

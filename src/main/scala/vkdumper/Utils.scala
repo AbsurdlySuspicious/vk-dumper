@@ -8,8 +8,11 @@ import scala.util.matching.Regex
 import scala.concurrent.duration._
 import Utils._
 
+import scala.runtime.ScalaRunTime
+
 object EC {
-  implicit val genericEC: ExecutionContext = ExecutionContext.global
+  //implicit val genericEC: ExecutionContext = ExecutionContext.global
+  //  - Monix scheduler provides EC
   implicit val genericSched: Scheduler = Scheduler.global
 }
 
@@ -104,8 +107,14 @@ object Utils {
       }
   }
 
-  def await[T](a: Awaitable[T]): T = Await.result(a, 5.seconds)
+  def await[T](a: Awaitable[T]): T = awaitT(5.seconds, a)
+  def awaitT[T](time: FiniteDuration, a: Awaitable[T]): T = Await.result(a, time)
   def awaitU(as: Awaitable[Any]*): Unit = as.foreach(await)
+  def awaitU(time: FiniteDuration, as: Awaitable[Any]*): Unit = as.foreach(awaitT(time, _))
+
+  trait ProductToString { this: Product =>
+    override def toString = ScalaRunTime._toString(this)
+  }
 
   object CMPUtils {
     val re = new Regex("""\((\d+)_(\d+)\)""")

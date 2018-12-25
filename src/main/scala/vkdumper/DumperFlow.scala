@@ -6,7 +6,11 @@ import java.net.{
   SocketException,
   UnknownHostException
 }
-import java.util.concurrent.{ConcurrentLinkedQueue, TimeoutException}
+import java.util.concurrent.{
+  ConcurrentLinkedQueue,
+  ForkJoinPool,
+  TimeoutException
+}
 import java.util.concurrent.atomic.AtomicReference
 
 import ApiData._
@@ -21,7 +25,7 @@ import monix.execution.Scheduler
 
 import scala.collection.immutable.Iterable
 import scala.concurrent.duration._
-import scala.concurrent.{ExecutionContextExecutor, Future, Promise}
+import scala.concurrent._
 import scala.language.postfixOps
 import scala.util.Try
 import Utils._
@@ -36,7 +40,14 @@ import scala.collection.immutable
 class DumperFlow(db: DB, api: ApiOperator, cfg: Cfg)(implicit sys: ActorSystem)
     extends LazyLogging {
 
-  implicit val mat: ActorMaterializer = ActorMaterializer()
+  val svDecider: Supervision.Decider = {
+    case _: ResErrWrp => Supervision.restart
+    case _            => Supervision.stop
+  }
+
+  implicit val mat: ActorMaterializer = ActorMaterializer(
+    ActorMaterializerSettings(sys).withSupervisionStrategy(svDecider)
+  )
 
   val mRetry = 3
   val mDelay = 5.seconds
@@ -127,6 +138,35 @@ class DumperFlow(db: DB, api: ApiOperator, cfg: Cfg)(implicit sys: ActorSystem)
     //  progress calls
 
     pr.future
+  }
+
+  def testFlow: Future[Done] = {
+
+    val decider: Supervision.Decider = { _ =>
+      Supervision.restart
+    }
+
+    implicit val mat: ActorMaterializer = ActorMaterializer(
+      ActorMaterializerSettings(sys).withSupervisionStrategy(decider)
+    )
+
+    implicit val ec: ExecutionContextExecutorService =
+      ExecutionContext.fromExecutorService(new ForkJoinPool(10))
+
+    Source(1 to 20)
+      .buffer(3, OverflowStrategy.backpressure)
+      .throttle(1, 0.5.seconds)
+      .mapAsync(4) {
+        case 5 =>
+          Future {
+            Thread.sleep(5000)
+            throw new Exception("mda")
+            "r: 5"
+          }(ec)
+        case x => Future.successful(s"r: $x")
+      }
+      .recover { case _ => "shit" }
+      .runWith(Sink.foreach(println))
   }
 
 }
