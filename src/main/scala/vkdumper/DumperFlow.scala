@@ -144,19 +144,13 @@ class DumperFlow(db: DB, api: ApiOperator, cfg: Cfg)(implicit sys: ActorSystem)
     pr.future
   }
 
-  class MsgFlowIn(val peer: Int, val last: Int, val cn: Int, val ct: Int)(
-      fun: (Int, Int) => Conv) {
-    def conv(startOffset: Int, totalCount: Int): Conv =
-      fun(startOffset, totalCount)
+  case class ConvPreMap(peer: Int, last: Int, convN: Int, convT: Int) {
+    def conv(startOffset: Int, totalCount: Int) =
+      Conv(peer, startOffset, totalCount, last, convN -> convT)
 
     def progress: Option[CachedMsgProgress] =
       db.getProgress(peer)
   }
-
-  def convPreMap(peer: Int, last: Int, convN: Int, convT: Int) =
-    new MsgFlowIn(peer, last, convN, convT)(
-      (so, tc) => Conv(peer, so, tc, last, convN -> convT)
-    )
 
   // todo leastOffset
 
@@ -164,11 +158,11 @@ class DumperFlow(db: DB, api: ApiOperator, cfg: Cfg)(implicit sys: ActorSystem)
 
     val par = 4
     val inLn = list.length
-    val input: Iterable[MsgFlowIn] =
+    val input: Iterable[ConvPreMap] =
       list.view.zipWithIndex
         .map {
           case (ApiConvListItem(c, m), cn) =>
-            convPreMap(c.peer.id, m.id, cn, inLn)
+            ConvPreMap(c.peer.id, m.id, cn, inLn)
         }
         .to[Iterable]
 
@@ -181,7 +175,7 @@ class DumperFlow(db: DB, api: ApiOperator, cfg: Cfg)(implicit sys: ActorSystem)
       }
       .mapAsync(1) {
         case (pm, pr) =>
-          prog.msgStart(pm.peer, pm.cn, pm.ct)
+          prog.msgStart(pm.peer, pm.convN, pm.convT)
           api
             .getHistory(pm.peer, 0, 0)
             .flatMap(apiFMap)
@@ -195,7 +189,7 @@ class DumperFlow(db: DB, api: ApiOperator, cfg: Cfg)(implicit sys: ActorSystem)
         case (pm, Some(pr), c) => pm.conv(pr.lastOffset, c)
       }
 
-      // todo inner Chunk flow -> flatMapConcat with Sink.last
+      // todo inner Chunk flow -> flatMapConcat with Sink.last OR flatMapAsync
 
   }
 
