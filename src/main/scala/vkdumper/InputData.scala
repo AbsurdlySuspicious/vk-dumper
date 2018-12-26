@@ -13,24 +13,23 @@ case class ConvPos(total: Int, convN: Int, convCount: Int) {
   val cs = s"$counter/$convCount"
 }
 
-sealed trait WorkInput
+//sealed trait WorkInput
+//case object TerminateFlow extends WorkInput
 
-case object TerminateFlow extends WorkInput
-
-case class Chunk(peer: Int, offset: Int, count: Int) extends WorkInput
+case class Chunk(peer: Int, offset: Int, count: Int, pos: ConvPos) //extends WorkInput
 
 case class Conv(peer: Int, startOffset: Int, totalCount: Int, lastMsgId: Int, convNC: (Int, Int)) {
 
   val (convN, convCount) = convNC
   val pos = ConvPos(totalCount, convN, convCount)
 
-  def stream: Stream[WorkInput] = {
+  def stream: Stream[Chunk] = {
     val step = Const.msgOffsetStep
 
     val s = Stream
       .iterate(startOffset)(_ + step)
       .takeWhile(_ < totalCount)
-      .map(o => Chunk(peer, o, step))
+      .map(o => Chunk(peer, o, step, pos))
 
     s //++ List(TerminateFlow)
   }

@@ -152,11 +152,11 @@ class DumperFlow(db: DB, api: ApiOperator, cfg: Cfg)(implicit sys: ActorSystem)
       db.getProgress(peer)
   }
 
-  case class ChunkResp(lastMsg: Int)
+  case class ChunkResp(peer: Int, lastMsg: Int, pos: ConvPos)
 
   // todo leastOffset
 
-  def msgFlow(list: List[ApiConvListItem]) = {
+  def msgFlow(list: List[ApiConvListItem]): Future[Unit] = {
 
     val parApi = 3
     val inLn = list.length
@@ -167,6 +167,9 @@ class DumperFlow(db: DB, api: ApiOperator, cfg: Cfg)(implicit sys: ActorSystem)
             ConvPreMap(c.peer.id, m.id, cn, inLn)
         }
         .to[Iterable]
+
+    val prm = Promise[Unit]()
+    val sink = Sink.onComplete(_ => prm.success(unit))
 
     Source(input)
       .map(a => a -> a.progress)
@@ -193,20 +196,34 @@ class DumperFlow(db: DB, api: ApiOperator, cfg: Cfg)(implicit sys: ActorSystem)
       .mapAsync(1) { c =>
         Source(c.stream)
           .mapAsync(parApi) {
-            case Chunk(peer, offset, count) => api
+            case ch @ Chunk(peer, offset, count, pos) =>
+              prog.msg(peer, offset, pos)
+              api
               .getHistory(peer, offset, count)
               .flatMap(apiFMap)
               .onErrorRestartLoop(mRetry)(retryFun)
-              .map(r => (r, offset + count))
+              .map(r => (r, ch))
               .runToFuture
           }
-          .mapAsync(parApi) {
-            case (r, o) => ???
+          .filter(_._1.items.nonEmpty)
+          .map {
+            case (r, Chunk(peer, offset, count, pos)) =>
+              val last = r.items.last.id
+              db.updateProgress(peer) { opt =>
+                val old = opt.map(_.ranges).getOrElse(Nil)
+                val nr = mergeRanges(offset -> (offset + count), old)
+                CachedMsgProgress(nr, last)
+              }
+              ChunkResp(peer, last, pos)
+          }
+          .runWith(Sink.last)
+          .map {
+            case ChunkResp(peer, _, pos) => prog.msgDone(peer, pos)
           }
        }
+      .runWith(sink)
 
-      // todo inner Chunk flow -> flatMapConcat with Sink.last OR flatMapAsync
-
+    prm.future
   }
 
 }
