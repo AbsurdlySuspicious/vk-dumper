@@ -30,8 +30,16 @@ class ProgressPrinter {
   def convDone(total: Int): Unit =
     con(s"[$total/$total] conversation update done")
 
+  private def msgStartText(peer: Int, c: String) =
+    s"[$c   0%] conversation $peer"
+
   def msgStart(peer: Int, pos: ConvPos): Unit =
-    con(s"[${pos.cs}   0%] conversation $peer")
+    con(msgStartText(peer, pos.cs))
+
+  def msgStart(peer: Int, n: Int, total: Int): Unit = {
+    val c = con.counter(total, n)
+    con(msgStartText(peer, c))
+  }
 
   def msg(peer: Int, offset: Int, pos: ConvPos): Unit = {
     val t = pos.total
@@ -131,7 +139,9 @@ object Utils {
       val j = parse(str)
 
       CachedMsgProgress(
-        (j \ "r").extract[List[List[Int]]].map { case f :: t :: Nil => f -> t },
+        (j \ "r").extract[List[List[Int]]].collect {
+          case f :: t :: Nil => f -> t
+        },
         (j \ "last").as[Int]
       )
     }
@@ -147,6 +157,15 @@ object Utils {
 
       compact(render(j))
     }
+
+    private def makeOffset(rng: List[Rng]): Int = rng match {
+      case Nil         => 0
+      case (_, o) :: _ => o
+    }
+
+    def lastOffset: Int = makeOffset(ranges.reverse)
+    def leastOffset: Int = makeOffset(ranges)
+
   }
 
 }

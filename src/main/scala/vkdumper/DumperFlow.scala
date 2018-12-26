@@ -34,8 +34,8 @@ import Const._
 import EC.genericSched
 
 import scala.collection.JavaConverters._
-import scala.collection.immutable.IndexedSeq
-import scala.collection.immutable
+import scala.collection.immutable.{IndexedSeq, Iterable}
+import scala.collection.{SeqView, immutable}
 
 class DumperFlow(db: DB, api: ApiOperator, cfg: Cfg)(implicit sys: ActorSystem)
     extends LazyLogging {
@@ -98,6 +98,11 @@ class DumperFlow(db: DB, api: ApiOperator, cfg: Cfg)(implicit sys: ActorSystem)
 
   }
 
+  def apiFMap[T]: Result[T] => Task[T] = {
+    case e: ResErr => Task.raiseError(ResErrWrp(e))
+    case Res(x)    => Task.now(x)
+  }
+
   type ConvFT = ConcurrentLinkedQueue[ApiConvListItem]
 
   def convFlow(count: Int): Future[ConvFT] = {
@@ -126,10 +131,7 @@ class DumperFlow(db: DB, api: ApiOperator, cfg: Cfg)(implicit sys: ActorSystem)
         prog.conv(o, count)
         api
           .getConversations(o, step)
-          .flatMap {
-            case e: ResErr => Task.raiseError(ResErrWrp(e))
-            case Res(x)    => Task.now(x)
-          }
+          .flatMap(apiFMap)
           .onErrorRestartLoop(mRetry)(retryFun)
           .runToFuture
       }
@@ -140,6 +142,61 @@ class DumperFlow(db: DB, api: ApiOperator, cfg: Cfg)(implicit sys: ActorSystem)
     //  check last_message / chat msg count inclusion
 
     pr.future
+  }
+
+  class MsgFlowIn(val peer: Int, val last: Int, val cn: Int, val ct: Int)(
+      fun: (Int, Int) => Conv) {
+    def conv(startOffset: Int, totalCount: Int): Conv =
+      fun(startOffset, totalCount)
+
+    def progress: Option[CachedMsgProgress] =
+      db.getProgress(peer)
+  }
+
+  def convPreMap(peer: Int, last: Int, convN: Int, convT: Int) =
+    new MsgFlowIn(peer, last, convN, convT)(
+      (so, tc) => Conv(peer, so, tc, last, convN -> convT)
+    )
+
+  // todo leastOffset
+
+  def msgFlow(list: List[ApiConvListItem]) = {
+
+    val par = 4
+    val inLn = list.length
+    val input: Iterable[MsgFlowIn] =
+      list.view.zipWithIndex
+        .map {
+          case (ApiConvListItem(c, m), cn) =>
+            convPreMap(c.peer.id, m.id, cn, inLn)
+        }
+        .to[Iterable]
+
+    Source(input)
+      .map(a => a -> a.progress)
+      .filter {
+        case (_, None) => true
+        case (pm, pr) =>
+          pr.exists(p => p.ranges.length <= 1 && p.lastMsgId != pm.last)
+      }
+      .mapAsync(1) {
+        case (pm, pr) =>
+          prog.msgStart(pm.peer, pm.cn, pm.ct)
+          api
+            .getHistory(pm.peer, 0, 0)
+            .flatMap(apiFMap)
+            .onErrorRestartLoop(mRetry)(retryFun)
+            .map(_.count)
+            .map(r => (pm, pr, r))
+            .runToFuture
+      }
+      .map {
+        case (pm, None, c)     => pm.conv(0, c)
+        case (pm, Some(pr), c) => pm.conv(pr.lastOffset, c)
+      }
+
+      // todo inner Chunk flow -> flatMapConcat with Sink.last
+
   }
 
 }

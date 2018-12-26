@@ -86,13 +86,18 @@ class DB(val fp: FilePath)(implicit fac: ActorRefFactory) extends LazyLogging {
   val msgFile = new FileWriterWrapper(fp.msgLog)
   val userFile = new FileWriterWrapper(fp.profileLog)
 
-  def updateProgress(peer: Int, c: CachedMsgProgress): Unit = {
+  def setProgress(peer: Int, c: CachedMsgProgress): Unit = {
     progress.put(peer, c.stringRepr)
     db.commit()
   }
 
   def getProgress(peer: Int): Option[CachedMsgProgress] =
     progress.get(peer).map(CMPUtils.fromString)
+
+  def updateProgress(peer: Int)(f: Option[CachedMsgProgress] => CachedMsgProgress): Unit = {
+    val c = getProgress(peer)
+    setProgress(peer, f(c))
+  }
 
   def hasProfile(peer: Int): Boolean =
     profileIds.contains(peer)

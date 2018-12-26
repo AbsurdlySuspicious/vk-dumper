@@ -106,7 +106,7 @@ class DBTest
       (input.toMap ++ input2).toList
 
     val addf: LT => Unit = {
-      case (p, c) => db.updateProgress(p, c)
+      case (p, c) => db.setProgress(p, c)
     }
 
     val getf: LT => TraversableOnce[LT] = {
