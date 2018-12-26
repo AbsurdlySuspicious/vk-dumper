@@ -152,11 +152,13 @@ class DumperFlow(db: DB, api: ApiOperator, cfg: Cfg)(implicit sys: ActorSystem)
       db.getProgress(peer)
   }
 
+  case class ChunkResp(lastMsg: Int)
+
   // todo leastOffset
 
   def msgFlow(list: List[ApiConvListItem]) = {
 
-    val par = 4
+    val parApi = 3
     val inLn = list.length
     val input: Iterable[ConvPreMap] =
       list.view.zipWithIndex
@@ -188,6 +190,20 @@ class DumperFlow(db: DB, api: ApiOperator, cfg: Cfg)(implicit sys: ActorSystem)
         case (pm, None, c)     => pm.conv(0, c)
         case (pm, Some(pr), c) => pm.conv(pr.lastOffset, c)
       }
+      .mapAsync(1) { c =>
+        Source(c.stream)
+          .mapAsync(parApi) {
+            case Chunk(peer, offset, count) => api
+              .getHistory(peer, offset, count)
+              .flatMap(apiFMap)
+              .onErrorRestartLoop(mRetry)(retryFun)
+              .map(r => (r, offset + count))
+              .runToFuture
+          }
+          .mapAsync(parApi) {
+            case (r, o) => ???
+          }
+       }
 
       // todo inner Chunk flow -> flatMapConcat with Sink.last OR flatMapAsync
 

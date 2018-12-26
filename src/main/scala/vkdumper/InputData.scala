@@ -32,7 +32,7 @@ case class Conv(peer: Int, startOffset: Int, totalCount: Int, lastMsgId: Int, co
       .takeWhile(_ < totalCount)
       .map(o => Chunk(peer, o, step))
 
-    s ++ List(TerminateFlow)
+    s //++ List(TerminateFlow)
   }
 
 }
