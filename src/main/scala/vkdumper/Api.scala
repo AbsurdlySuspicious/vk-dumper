@@ -57,7 +57,7 @@ class Api(cfg: Cfg) {
       .map(apiDecode[ApiConvMsgResp])
 
   def getHistory(peer: Int,
-                 offset: Long,
+                 offset: Int,
                  count: Int): Task[Result[ApiConvMsgResp]] =
     get(
       "messages.getHistory",
@@ -70,7 +70,7 @@ class Api(cfg: Cfg) {
     ).send()
       .map(apiDecode[ApiConvMsgResp])
 
-  def getConversations(offset: Long, count: Int): Task[Result[ApiConvList]] =
+  def getConversations(offset: Int, count: Int): Task[Result[ApiConvList]] =
     get(
       "messages.getConversations",
       "extended" -> "0",

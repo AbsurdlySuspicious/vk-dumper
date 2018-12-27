@@ -9,21 +9,19 @@ import scala.collection.concurrent.TrieMap
 import scala.util.Random
 import MockingCommon._
 import monix.eval.Task
+import scala.collection.JavaConverters._
+import Utils._
 
 object MockingCommon {
   type RespMapK = (Int, Long)
   type RespMapV = List[Task[Result[ApiConvMsgResp]]]
+  type CLQ[T] = ConcurrentLinkedQueue[T]
 
-  case class MsgH(peer: Int, ms: List[ApiMessage])
-  case class Msg(peer: Int, m: ApiMessage)
-  case class Req(peer: Int, ids: List[Long])
+  def ns: Nothing = throw new UnsupportedOperationException("not mocked")
 }
 
 case class MockingOpts(
-    cfg: Cfg = Cfg(token = ""),
-    msgResponses: Map[RespMapK, RespMapV] = Map.empty,
-    inputProfiles: Map[(Int, Long), List[ApiUser]] = Map.empty, // K = (peer, from)
-    cidFilter: Long => Boolean = _ => true
+    cfg: Cfg = Cfg(token = "")
 )
 
 class ApiMock(opts: MockingOpts)
@@ -32,53 +30,86 @@ class ApiMock(opts: MockingOpts)
 
   val rnd = new Random
 
-  val msgReqs = new ConcurrentLinkedQueue[Req]
-  val convPeers = new ConcurrentLinkedQueue[Int]
+  case class MsgR(peer: Int, offset: Int, count: Int)
+  val msgReqs = new CLQ[MsgR]
 
-  val msgResps = new TrieMap[RespMapK, RespMapV]
-  msgResps ++= opts.msgResponses
+  case class ConvR(offset: Int, count: Int)
+  val convReqs = new CLQ[ConvR]
 
-  def pHolderMsg(peer: Int, cid: Long) =
-    ApiMessage(rnd.nextLong,
-               1,
-               rnd.nextInt,
-               0,
-               peer,
-               rnd.nextString(5),
-               None,
-               Nil,
-               Nil)
+  val msgResps = new TrieMap[Int, List[ApiMessage]]
+  val convResps = new CLQ[ApiConvListItem]
+  val userResps = new CLQ[ApiUser]
 
-  def pHolderConv(peer: Int) = ApiConversation(ApiConvId("user", peer), None)
+  val historyErrors = new TrieMap[(Int, Int), CLQ[Any]]
+  val convErrors = new TrieMap[Int, CLQ[Any]]
 
-  override def usersGet(uid: Int*) = ???
+  def clearAll(): Unit = {
+    msgReqs.clear()
+    convReqs.clear()
 
-  override def getMe = ???
+    msgResps.clear()
+    convResps.clear()
+    userResps.clear()
 
-  override def getMsgByConvId(peer: Int, cids: Seq[Long]) = {
-    val cidHead = cids.head
-    val k = peer -> cidHead
-    msgResps.get(k) match {
-      case Some(task :: lft) =>
-        msgResps(k) = lft
-        task
+    historyErrors.clear()
+    convErrors.clear()
+  }
+
+  private def pushC[T](c: CLQ[T], o: List[T]): Unit = {
+    c.clear()
+    c.addAll(o.asJava)
+  }
+
+  def pushCv(c: List[ApiConvListItem]): Unit =
+    pushC(convResps, c)
+
+  def pushUsers(u: List[ApiUser]): Unit =
+    pushC(userResps, u)
+
+  def pushMsg(peer: Int, m: List[ApiMessage]): Unit =
+    msgResps.put(peer, m)
+
+  def pushMsgErr(peer: Int, offset: Int, err: List[Any]): Unit =
+    historyErrors.put(peer -> offset, new CLQ(err.asJava))
+
+  def pushCvErr(offset: Int, err: List[Any]): Unit =
+    convErrors.put(offset, new CLQ(err.asJava))
+
+  override def get(method: String, args: (String, String)*) = ns
+  override def usersGet(uid: Int*) = ns
+  override def getMe = ns
+  override def getMsgByConvId(peer: Int, cids: Seq[Long]) = ns
+
+  override def getHistory(peer: Int, offset: Int, count: Int) = Task {
+    val pe = Option(historyErrors.getOrElse(peer -> offset, new CLQ).poll())
+    pe.getOrElse(unit) match {
+      case e: ResErr => e
+      case t: Throwable => throw t
       case _ =>
-        Task {
-          msgReqs.add(Req(peer, cids.toList))
-          val newCids = cids.filter(opts.cidFilter).toList
-          val newPrf = opts.inputProfiles.getOrElse(peer -> cidHead, Nil)
-          //logger.info(s"newPrf $peer -> $cidHead: $newPrf")
-          ApiConvMsgResp(1337, newCids.map(pHolderMsg(peer, _)), newPrf)
-        }.map(Res(_))
+        val u = userResps.asScala.toList
+        val rq = MsgR(peer, offset, count)
+        msgReqs.add(rq)
+        val rs = msgResps.get(peer) match {
+          case None => ApiConvMsgResp(0, Nil, u)
+          case Some(m) =>
+            val nl = m.slice(offset, offset + count)
+            ApiConvMsgResp(nl.length, nl, u)
+        }
+        Res(rs)
     }
   }
 
-  override def getConversations(offset: Long, count: Int) =
-    Task {
-      val p = rnd.nextInt
-      convPeers.add(p)
-      val cList = (1 to count).map(_ =>
-        ApiConvListItem(pHolderConv(p), pHolderMsg(p, rnd.nextLong)))
-      ApiConvList(1337, cList.toList)
-    }.map(Res(_))
+  override def getConversations(offset: Int, count: Int) = Task {
+    val pe = Option(convErrors.getOrElse(offset, new CLQ).poll())
+    pe.getOrElse(unit) match {
+      case e: ResErr => e
+      case t: Throwable => throw t
+      case _ =>
+        val rq = ConvR(offset, count)
+        convReqs.add(rq)
+        val rs = convResps.asScala.slice(offset, offset + count).toList
+        Res(ApiConvList(rs.length, rs))
+    }
+  }
+
 }
