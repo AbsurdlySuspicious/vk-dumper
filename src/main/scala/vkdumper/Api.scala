@@ -13,7 +13,7 @@ import org.json4s.jackson.JsonMethods._
 import scala.concurrent.duration._
 import scala.language.postfixOps
 
-class ApiOperator(cfg: Cfg) {
+class Api(cfg: Cfg) {
 
   import ApiData._
   import cfg._

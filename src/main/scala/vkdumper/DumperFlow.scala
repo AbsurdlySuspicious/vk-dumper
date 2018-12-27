@@ -37,7 +37,7 @@ import scala.collection.JavaConverters._
 import scala.collection.immutable.{IndexedSeq, Iterable}
 import scala.collection.{SeqView, immutable}
 
-class DumperFlow(db: DB, api: ApiOperator, cfg: Cfg)(implicit sys: ActorSystem)
+class DumperFlow(db: DB, api: Api, cfg: Cfg)(implicit sys: ActorSystem)
     extends LazyLogging {
 
   val svDecider: Supervision.Decider = {

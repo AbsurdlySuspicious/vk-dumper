@@ -27,7 +27,7 @@ case class MockingOpts(
 )
 
 class ApiMock(opts: MockingOpts)
-    extends ApiOperator(opts.cfg)
+    extends Api(opts.cfg)
     with LazyLogging {
 
   val rnd = new Random
