@@ -38,8 +38,9 @@ class FlowTest
 
   behavior of "DumperFlow.msgFlow"
 
-  // chunks test
+  // chunks test (requests check)
   // should return message list
+  // should save messages to db
   // should save profiles
   // should save progress
   // should filter conversations with "done" progress
