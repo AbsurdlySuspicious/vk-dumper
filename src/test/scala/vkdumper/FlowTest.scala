@@ -13,10 +13,10 @@ class FlowTest
 
   implicit val sys: ActorSystem = ActorSystem()
 
-  val cfg = Cfg(token = "")
+  val mo = MockingOpts()
   val db = new DB(InMem)
-  val api = new ApiOperator(cfg) // todo mock
-  val flow = new DumperFlow(db, api, cfg)
+  val api = new ApiMock(mo)
+  val flow = new DumperFlow(db, api, mo.cfg)
 
   override def afterAll(): Unit = {
     logger.info("clean up [end]")
