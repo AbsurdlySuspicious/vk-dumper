@@ -24,9 +24,17 @@ sealed trait DBPath extends DBPathOpt
 case class DBFile(path: String) extends DBPath
 case object DBMem extends DBPath
 
+sealed trait DBCfg {
+  def bootstrap(): Unit
+  val dbPath: DBPath
+  val profileLog: Option[String]
+  val convLog: Option[String]
+  val msgLog: Option[String]
+}
+
 case class FilePath(uid: Int,
                     baseDir: String,
-                    private val overrideDb: DBPathOpt = DBDefault) {
+                    private val overrideDb: DBPathOpt = DBDefault) extends DBCfg {
 
   private def root(p: String) = s"$baseDir/$uid/$p"
 
@@ -39,13 +47,13 @@ case class FilePath(uid: Int,
   }
 
   val profileLog =
-    root(s"users_$uid.csv")
+    Some(root(s"users_$uid.csv"))
 
   val convLog =
-    root(s"clist_$uid.csv")
+    Some(root(s"clist_$uid.csv"))
 
   val msgLog =
-    root(s"msg_$uid.csv")
+    Some(root(s"msg_$uid.csv"))
 
   def bootstrap(): Unit = {
     baseDirFile.mkdir()
@@ -54,7 +62,16 @@ case class FilePath(uid: Int,
 
 }
 
-class DB(val fp: FilePath)(implicit fac: ActorRefFactory) extends LazyLogging {
+case object InMem extends DBCfg {
+  override def bootstrap(): Unit = {}
+
+  override val dbPath = DBMem
+  override val profileLog = None
+  override val convLog = None
+  override val msgLog = None
+}
+
+class DB(val fp: DBCfg)(implicit fac: ActorRefFactory) extends LazyLogging {
 
   implicit val formats: Formats = Serialization.formats(NoTypeHints)
 
@@ -136,7 +153,7 @@ class DB(val fp: FilePath)(implicit fac: ActorRefFactory) extends LazyLogging {
 
 }
 
-class FileWriterWrapper(path: String, append: Boolean = true)(
+class FileWriterWrapper(path: Option[String], append: Boolean = true)(
     implicit fac: ActorRefFactory) {
 
   val props = Props(new FileWriter(path, append))

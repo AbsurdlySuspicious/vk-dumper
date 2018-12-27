@@ -205,7 +205,7 @@ class DumperFlow(db: DB, api: ApiOperator, cfg: Cfg)(implicit sys: ActorSystem)
               .map(r => (r, ch))
               .runToFuture
           }
-          .filter(_._1.items.nonEmpty)
+          .filter { case (r, _) => r.items.nonEmpty }
           .map {
             case (r, Chunk(peer, offset, count, pos)) =>
               val last = r.items.last.id

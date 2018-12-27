@@ -41,17 +41,19 @@ class DBTest
   def readFile(p: String): String =
     Source.fromFile(p).getLines().mkString("\n")
 
+  def readFile(p: Option[String]): String =
+    p.map(s => readFile(s)).getOrElse("")
+
   def sr(in: List[ApiObject]) =
     in.map(write(_)).mkString(",")
 
-  val dbp = DBDefault //DBMem
   val dbBase = "tests_temp"
   val dbUid = 1
 
   val db = {
     logger.info("clean up files [start]")
     cleanUp()
-    new DB(FilePath(dbUid, dbBase, dbp))
+    new DB(FilePath(dbUid, dbBase))
   }
 
   val cleanUpFilesAfter = false
@@ -78,7 +80,7 @@ class DBTest
   behavior of "DB"
 
   it should "create dirs on fpath bootstrap" in {
-    val fp = db.fp
+    val fp = db.fp.asInstanceOf[FilePath]
     val wd = new File(System.getProperty("user.dir"))
 
     new File(wd, fp.baseDir).exists shouldBe true
