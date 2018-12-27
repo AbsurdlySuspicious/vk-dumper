@@ -4,6 +4,7 @@ import akka.actor.ActorSystem
 import com.typesafe.scalalogging.LazyLogging
 import org.scalatest.{BeforeAndAfterAll, FlatSpec, Matchers}
 import Utils._
+import scala.collection.JavaConverters._
 
 class FlowTest
     extends FlatSpec
@@ -25,5 +26,24 @@ class FlowTest
     db.close()
     awaitU(sys.terminate())
   }
+
+  val f1 = flow.convFlow(228)
+  val r1 = await(f1)
+
+  //println(s"\n${r1.asScala.mkString("\n")}")
+
+  behavior of "DumperFlow.convFlow"
+
+  // should return conversation queue
+
+  behavior of "DumperFlow.msgFlow"
+
+  // chunks test
+  // should return message list
+  // should save profiles
+  // should save progress
+  // should filter conversations with "done" progress
+  // should restore from single-range "undone" progress
+  // (later) should restore from multiple-ranges progress
 
 }

@@ -39,13 +39,12 @@ class ApiMock(opts: MockingOpts)
   msgResps ++= opts.msgResponses
 
   def pHolderMsg(peer: Int, cid: Long) =
-    ApiMessage(1337,
+    ApiMessage(rnd.nextLong,
                1,
-               rnd.nextLong,
+               rnd.nextInt,
                0,
                peer,
                rnd.nextString(5),
-               cid,
                None,
                Nil,
                Nil)

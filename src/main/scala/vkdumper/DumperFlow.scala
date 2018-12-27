@@ -138,9 +138,6 @@ class DumperFlow(db: DB, api: Api, cfg: Cfg)(implicit sys: ActorSystem)
       .map(a => q.addAll(a.items.asJavaCollection))
       .runWith(sink)
 
-    // todo
-    //  check last_message / chat msg count inclusion
-
     pr.future
   }
 
@@ -157,6 +154,11 @@ class DumperFlow(db: DB, api: Api, cfg: Cfg)(implicit sys: ActorSystem)
   // todo leastOffset
 
   def msgFlow(list: List[ApiConvListItem]): Future[Unit] = {
+
+    val (thrCount, thrTime) = (
+      cfg.thrCount,
+      cfg.thrTime
+    )
 
     val parApi = 3
     val inLn = list.length
@@ -178,6 +180,8 @@ class DumperFlow(db: DB, api: Api, cfg: Cfg)(implicit sys: ActorSystem)
         case (pm, pr) =>
           pr.exists(p => p.ranges.length <= 1 && p.lastMsgId != pm.last)
       }
+      .throttle(thrCount, thrTime)
+      .backpressureTimeout(bpDelay)
       .mapAsync(1) {
         case (pm, pr) =>
           prog.msgStart(pm.peer, pm.convN, pm.convT)
