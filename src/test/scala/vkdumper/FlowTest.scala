@@ -6,7 +6,13 @@ import org.scalatest.{BeforeAndAfterAll, BeforeAndAfterEach, FlatSpec, Matchers}
 import Utils._
 import org.json4s._
 import org.json4s.jackson.JsonMethods._
-import vkdumper.ApiData.{ApiConvId, ApiConvListItem, ApiConversation, ApiMessage}
+import vkdumper.ApiData.{
+  ApiConvId,
+  ApiConvListItem,
+  ApiConversation,
+  ApiMessage,
+  ApiUser
+}
 
 import scala.collection.JavaConverters._
 import scala.util.Random
@@ -15,7 +21,7 @@ class FlowTest
     extends FlatSpec
     with Matchers
     with BeforeAndAfterAll
-      with BeforeAndAfterEach
+    with BeforeAndAfterEach
     with LazyLogging {
 
   implicit val sys: ActorSystem = ActorSystem()
@@ -55,8 +61,11 @@ class FlowTest
   def pchunk(peer: Int, total: Int, o: Int, c: Int) =
     Chunk(peer, o, c, ConvPos(total, 1, 1))
 
+  def pmsgId(id: Int) =
+    ApiMessage(0, 1, id, 0, 101, "", None, Nil, Nil)
+
   def pmsg =
-    ApiMessage(0, 1, rnd.nextInt, 0, 101, "", None, Nil, Nil)
+    ApiMessage(0, 1, 301337, 0, 101, "", None, Nil, Nil)
 
   def pmsg(peer: Int, text: String) =
     ApiMessage(0, 1, rnd.nextInt, 0, peer, text, None, Nil, Nil)
@@ -69,8 +78,16 @@ class FlowTest
       .map(c => ApiMessage(0, 1, c, 0, peer, s"$peer-$c", None, Nil, Nil))
       .toList
 
+  def pusers(count: Int) =
+    (1 to count)
+      .map(c => ApiUser(rndstr(5), "", 100 + c, None))
+      .toList
+
   def pconvItem(msg: ApiMessage)(peers: Int*) =
-    peers.map(p => ApiConvListItem(ApiConversation(ApiConvId("chat", p), None), msg))
+    peers
+      .map(p =>
+        ApiConvListItem(ApiConversation(ApiConvId("chat", p), None), msg))
+      .toList
 
   "InputData.Conv" should "produce work chunks" in {
 
@@ -111,7 +128,7 @@ class FlowTest
   behavior of "DumperFlow.convFlow"
 
   it should "return conversation queue" in {
-    val input = pconvItem(pmsg)(1 to 480:_*).toList
+    val input = pconvItem(pmsg)(1 to 480: _*)
     api.pushCv(input)
 
     val f1 = flow.convFlow(input.length)
@@ -139,20 +156,56 @@ class FlowTest
       case (p, l) => api.pushMsg(p, l)
     }
 
-    val input = pconvItem(pmsg)(1 to 7:_*)
+    val input = pconvItem(pmsg)(1 to 7: _*)
 
-    val f1 = flow.msgFlow(input.toList)
+    val f1 = flow.msgFlow(input)
     awaitU(f1)
 
     db.msgM.asScala.toList shouldBe msgs
   }
 
+  it should "save profiles" in {
 
-  // should save profiles
-  // should save progress
-  // should handle errors
+    val users = pusers(10)
+    val input = pconvItem(pmsg)(1)
+
+    api.pushMsg(1, pmany(1, 10))
+    api.pushUsers(users)
+
+    val f1 = flow.msgFlow(input)
+    awaitU(f1)
+
+    db.usersM.asScala.toList shouldBe users
+
+  }
+
+  it should "save progress" in {
+
+    val pmLast = pmsg.id // todo fix last of empty stream and use pmsgId
+
+    api.pushMsg(1, pmany(1, 15))
+    api.pushMsg(2, pmany(2, 235))
+
+    val input1 = pconvItem(pmsg)(1, 2)
+    awaitU(flow.msgFlow(input1))
+
+    api.pushMsg(1, pmany(1, 10))
+
+    val input2 = pconvItem(pmsg)(1)
+    awaitU(flow.msgFlow(input2))
+
+    val r1 = db.getProgress(1)
+    val r2 = db.getProgress(2)
+
+    r1 shouldBe CachedMsgProgress(0 -> 25 :: Nil, pmLast)
+    r2 shouldBe CachedMsgProgress(0 -> 235 :: Nil, pmLast)
+
+  }
+
+
   // should filter conversations with "done" progress
   // should restore from single-range "undone" progress
+  // should handle errors
   // (later) should restore from multiple-ranges progress
 
 }

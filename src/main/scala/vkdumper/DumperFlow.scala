@@ -194,6 +194,7 @@ class DumperFlow(db: DB, api: Api, cfg: Cfg)(implicit sys: ActorSystem)
           }.runToFuture
       }
       .mapAsync(parOuter) { c =>
+        logger.info("inner")
         Source(c.stream)
           .throttle(thrCount, thrTime)
           .backpressureTimeout(bpDelay)
