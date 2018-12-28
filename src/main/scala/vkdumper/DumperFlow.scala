@@ -194,7 +194,7 @@ class DumperFlow(db: DB, api: Api, cfg: Cfg)(implicit sys: ActorSystem)
           }.runToFuture
       }
       .mapAsync(parOuter) { c =>
-        logger.info("inner")
+        //logger.info("inner")
         Source(c.stream)
           .throttle(thrCount, thrTime)
           .backpressureTimeout(bpDelay)
@@ -223,12 +223,13 @@ class DumperFlow(db: DB, api: Api, cfg: Cfg)(implicit sys: ActorSystem)
                   ChunkResp(peer, last, pos)
                 }
           }
-          .runWith(Sink.last)
+          .runWith(Sink.lastOption)
           .map {
-            case ChunkResp(peer, _, pos) => prog.msgDone(peer, pos)
+            case Some(ChunkResp(peer, _, pos)) => prog.msgDone(peer, pos)
+            case _ => ()
           }
       }
-      .runWith(Sink.last)
+      .runWith(Sink.lastOption)
       .map(_ => unit)
   }
 

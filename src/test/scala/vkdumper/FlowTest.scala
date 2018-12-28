@@ -2,17 +2,11 @@ package vkdumper
 
 import akka.actor.ActorSystem
 import com.typesafe.scalalogging.LazyLogging
-import org.scalatest.{BeforeAndAfterAll, BeforeAndAfterEach, FlatSpec, Matchers}
+import org.scalatest._
 import Utils._
 import org.json4s._
 import org.json4s.jackson.JsonMethods._
-import vkdumper.ApiData.{
-  ApiConvId,
-  ApiConvListItem,
-  ApiConversation,
-  ApiMessage,
-  ApiUser
-}
+import vkdumper.ApiData.{ApiConvId, ApiConvListItem, ApiConversation, ApiMessage, ApiUser}
 
 import scala.collection.JavaConverters._
 import scala.util.Random
@@ -20,6 +14,7 @@ import scala.util.Random
 class FlowTest
     extends FlatSpec
     with Matchers
+    with OptionValues
     with BeforeAndAfterAll
     with BeforeAndAfterEach
     with LazyLogging {
@@ -181,30 +176,23 @@ class FlowTest
 
   it should "save progress" in {
 
-    val pmLast = pmsg.id // todo fix last of empty stream and use pmsgId
-
     api.pushMsg(1, pmany(1, 15))
     api.pushMsg(2, pmany(2, 235))
 
     val input1 = pconvItem(pmsg)(1, 2)
     awaitU(flow.msgFlow(input1))
 
-    api.pushMsg(1, pmany(1, 10))
-
-    val input2 = pconvItem(pmsg)(1)
-    awaitU(flow.msgFlow(input2))
-
     val r1 = db.getProgress(1)
     val r2 = db.getProgress(2)
 
-    r1 shouldBe CachedMsgProgress(0 -> 25 :: Nil, pmLast)
-    r2 shouldBe CachedMsgProgress(0 -> 235 :: Nil, pmLast)
+    r1.get shouldBe CachedMsgProgress(0 -> 200 :: Nil, 15)
+    r2.get shouldBe CachedMsgProgress(0 -> 400 :: Nil, 235)
 
   }
 
 
-  // should filter conversations with "done" progress
-  // should restore from single-range "undone" progress
+  // should filter conversations with "done" progress   ---| single test
+  // should restore from single-range "undone" progress ---|
   // should handle errors
   // (later) should restore from multiple-ranges progress
 
