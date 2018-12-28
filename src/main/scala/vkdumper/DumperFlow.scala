@@ -145,11 +145,19 @@ class DumperFlow(db: DB, api: Api, cfg: Cfg)(implicit sys: ActorSystem)
     def conv(startOffset: Int, totalCount: Int) =
       Conv(peer, startOffset, totalCount, last, convN -> convT)
 
-    def progress: Option[CachedMsgProgress] =
+    lazy val progress: Option[CachedMsgProgress] =
       db.getProgress(peer)
   }
 
   case class ChunkResp(peer: Int, lastMsg: Int, pos: ConvPos)
+
+  private def history(peer: Int,
+                      offset: Int,
+                      count: Int): Task[ApiConvMsgResp] =
+    api
+      .getHistory(peer, offset, count)
+      .flatMap(apiFMap)
+      .onErrorRestartLoop(mRetry)(retryFun)
 
   // todo leastOffset
 
@@ -160,7 +168,9 @@ class DumperFlow(db: DB, api: Api, cfg: Cfg)(implicit sys: ActorSystem)
       cfg.thrTime
     )
 
-    val parApi = 3
+    val parOuter = 1
+    val parInner = 1
+
     val inLn = list.length
     val input: Iterable[ConvPreMap] =
       list.view.zipWithIndex
@@ -168,66 +178,57 @@ class DumperFlow(db: DB, api: Api, cfg: Cfg)(implicit sys: ActorSystem)
           case (ApiConvListItem(c, m), cn) =>
             ConvPreMap(c.peer.id, m.id, cn, inLn)
         }
+        .filter { pm =>
+          val pr = pm.progress
+          pr.isEmpty || pr.exists(p =>
+            p.ranges.length <= 1 && p.lastMsgId != pm.last)
+        }
         .to[Iterable]
 
-    val prm = Promise[Unit]()
-    val sink = Sink.onComplete(_ => prm.success(unit))
-
     Source(input)
-      .map(a => a -> a.progress)
-      .filter {
-        case (_, None) => true
-        case (pm, pr) =>
-          pr.exists(p => p.ranges.length <= 1 && p.lastMsgId != pm.last)
-      }
       .throttle(thrCount, thrTime)
-      .backpressureTimeout(bpDelay)
-      .mapAsync(1) {
-        case (pm, pr) =>
-          prog.msgStart(pm.peer, pm.convN, pm.convT)
-          api
-            .getHistory(pm.peer, 0, 0)
-            .flatMap(apiFMap)
-            .onErrorRestartLoop(mRetry)(retryFun)
-            .map(_.count)
-            .map(r => (pm, pr, r))
-            .runToFuture
+      .mapAsync(parOuter) { pm =>
+          history(pm.peer, 0, 0).map { r =>
+            val o = pm.progress.map(_.lastOffset).getOrElse(0)
+            pm.conv(o, r.count)
+          }.runToFuture
       }
-      .map {
-        case (pm, None, c)     => pm.conv(0, c)
-        case (pm, Some(pr), c) => pm.conv(pr.lastOffset, c)
-      }
-      .mapAsync(1) { c =>
+      .mapAsync(parOuter) { c =>
         Source(c.stream)
-          .mapAsync(parApi) {
+          .throttle(thrCount, thrTime)
+          .backpressureTimeout(bpDelay)
+          .mapAsync(parInner) {
             case ch @ Chunk(peer, offset, count, pos) =>
               prog.msg(peer, offset, pos)
-              api
-              .getHistory(peer, offset, count)
-              .flatMap(apiFMap)
-              .onErrorRestartLoop(mRetry)(retryFun)
-              .map(r => (r, ch))
-              .runToFuture
+              history(peer, offset, count)
+                .map(r => (r, ch))
+                .runToFuture
           }
-          .filter { case (r, _) => r.items.nonEmpty }
-          .map {
+          .filter {
+            case (r, _) => r.items.nonEmpty
+          }
+          .mapAsync(parInner) {
             case (r, Chunk(peer, offset, count, pos)) =>
               val last = r.items.last.id
-              db.updateProgress(peer) { opt =>
-                val old = opt.map(_.ranges).getOrElse(Nil)
-                val nr = mergeRanges(offset -> (offset + count), old)
-                CachedMsgProgress(nr, last)
-              }
-              ChunkResp(peer, last, pos)
+              db.addMessages(r.items)
+                .flatMap(_ => db.addProfiles(r.profiles))
+                .map { _ =>
+                  db.updateProgress(peer) { opt =>
+                    val old = opt.map(_.ranges).getOrElse(Nil)
+                    val nr = mergeRanges(offset -> (offset + count), old)
+                    CachedMsgProgress(nr, last)
+                  }
+
+                  ChunkResp(peer, last, pos)
+                }
           }
           .runWith(Sink.last)
           .map {
             case ChunkResp(peer, _, pos) => prog.msgDone(peer, pos)
           }
-       }
-      .runWith(sink)
-
-    prm.future
+      }
+      .runWith(Sink.last)
+      .map(_ => unit)
   }
 
 }

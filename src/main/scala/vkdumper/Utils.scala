@@ -23,7 +23,7 @@ object EC {
 
 class ProgressPrinter {
   def conv(curr: Int, total: Int): Unit = {
-    val c = con.counter(total, curr)
+    val c = con.counter(total, curr + 1)
     con(s"[$c/$total] updating conversations...")
   }
 
@@ -37,14 +37,14 @@ class ProgressPrinter {
     con(msgStartText(peer, pos.cs))
 
   def msgStart(peer: Int, n: Int, total: Int): Unit = {
-    val c = con.counter(total, n)
-    con(msgStartText(peer, c))
+    val c = con.counter(total, n + 1)
+    con(msgStartText(peer, s"$c/$total"))
   }
 
   def msg(peer: Int, offset: Int, pos: ConvPos): Unit = {
     val t = pos.total
     val p = con.counter(100, Math.round(100D / t * offset).toInt)
-    val m = con.counter(t, offset)
+    val m = con.counter(t, offset + 1)
     con(s"[${pos.cs} $p%] msg $m/$t, peer $peer")
   }
 
@@ -120,7 +120,7 @@ object Utils {
       }
   }
 
-  def await[T](a: Awaitable[T]): T = awaitT(5.seconds, a)
+  def await[T](a: Awaitable[T]): T = awaitT(60.seconds, a)
   def awaitT[T](time: FiniteDuration, a: Awaitable[T]): T =
     Await.result(a, time)
   def awaitU(as: Awaitable[Any]*): Unit = as.foreach(await)

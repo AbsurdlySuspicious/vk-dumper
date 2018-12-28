@@ -9,8 +9,10 @@ import scala.collection.concurrent.TrieMap
 import scala.util.Random
 import MockingCommon._
 import monix.eval.Task
+
 import scala.collection.JavaConverters._
 import Utils._
+import akka.actor.ActorRefFactory
 
 object MockingCommon {
   type RespMapK = (Int, Long)
@@ -92,8 +94,9 @@ class ApiMock(opts: MockingOpts)
         val rs = msgResps.get(peer) match {
           case None => ApiConvMsgResp(0, Nil, u)
           case Some(m) =>
+            val storedCount = m.length
             val nl = m.slice(offset, offset + count)
-            ApiConvMsgResp(nl.length, nl, u)
+            ApiConvMsgResp(storedCount, nl, u)
         }
         Res(rs)
     }
@@ -107,9 +110,27 @@ class ApiMock(opts: MockingOpts)
       case _ =>
         val rq = ConvR(offset, count)
         convReqs.add(rq)
-        val rs = convResps.asScala.slice(offset, offset + count).toList
-        Res(ApiConvList(rs.length, rs))
+        val resps = convResps.asScala.toList
+        val storedCount = resps.length
+        val rs = resps.slice(offset, offset + count)
+        Res(ApiConvList(storedCount, rs))
     }
   }
 
+}
+
+class DBMock(opts: MockingOpts)(implicit fac: ActorRefFactory) extends DB(InMem) {
+
+  val usersM = new CLQ[ApiUser]
+  val msgM = new CLQ[ApiMessage]
+
+  override def addProfiles(in: Iterable[ApiUser]) = {
+    usersM.addAll(in.toList.asJava)
+    super.addProfiles(in)
+  }
+
+  override def addMessages(msgs: Iterable[ApiMessage]) = {
+    msgM.addAll(msgs.toList.asJava)
+    super.addMessages(msgs)
+  }
 }
