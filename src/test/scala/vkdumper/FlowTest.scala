@@ -84,6 +84,9 @@ class FlowTest
         ApiConvListItem(ApiConversation(ApiConvId("chat", p), None), msg))
       .toList
 
+  def ppr(last: Int, rng: (Int, Int)*): CachedMsgProgress =
+    CachedMsgProgress(rng.toList, last)
+
   "InputData.Conv" should "produce work chunks" in {
 
     val input = List(
@@ -193,6 +196,14 @@ class FlowTest
 
   // should filter conversations with "done" progress   ---| single test
   // should restore from single-range "undone" progress ---|
+
+  it should "restore from progress" in {
+    val prg = List(
+
+    )
+  }
+
+
   // should handle errors
   // (later) should restore from multiple-ranges progress
 
