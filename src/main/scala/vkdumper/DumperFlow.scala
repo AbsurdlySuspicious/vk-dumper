@@ -183,15 +183,19 @@ class DumperFlow(db: DB, api: Api, cfg: Cfg)(implicit sys: ActorSystem)
           pr.isEmpty || pr.exists(p =>
             p.ranges.length <= 1 && p.lastMsgId != pm.last)
         }
+        .map { pm =>
+          logger.info(s"pm filter passed: $pm")
+          pm
+        }
         .to[Iterable]
 
     Source(input)
       .throttle(thrCount, thrTime)
       .mapAsync(parOuter) { pm =>
-          history(pm.peer, 0, 0).map { r =>
-            val o = pm.progress.map(_.lastOffset).getOrElse(0)
-            pm.conv(o, r.count)
-          }.runToFuture
+        history(pm.peer, 0, 0).map { r =>
+          val o = pm.progress.map(_.lastOffset).getOrElse(0)
+          pm.conv(o, r.count)
+        }.runToFuture
       }
       .mapAsync(parOuter) { c =>
         //logger.info("inner")
@@ -227,7 +231,7 @@ class DumperFlow(db: DB, api: Api, cfg: Cfg)(implicit sys: ActorSystem)
           .runWith(Sink.lastOption)
           .map {
             case Some(ChunkResp(peer, _, pos)) => prog.msgDone(peer, pos)
-            case _ => ()
+            case _                             => ()
           }
       }
       .runWith(Sink.lastOption)

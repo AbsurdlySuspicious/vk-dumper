@@ -6,7 +6,13 @@ import org.scalatest._
 import Utils._
 import org.json4s._
 import org.json4s.jackson.JsonMethods._
-import vkdumper.ApiData.{ApiConvId, ApiConvListItem, ApiConversation, ApiMessage, ApiUser}
+import vkdumper.ApiData.{
+  ApiConvId,
+  ApiConvListItem,
+  ApiConversation,
+  ApiMessage,
+  ApiUser
+}
 
 import scala.collection.JavaConverters._
 import scala.util.Random
@@ -72,7 +78,17 @@ class FlowTest
 
   def pmany(peer: Int, count: Int) =
     (1 to count)
-      .map(c => ApiMessage(0, 1, pmanyIdStart + c, 0, peer, s"$peer-$c", None, Nil, Nil))
+      .map(
+        c =>
+          ApiMessage(0,
+                     1,
+                     pmanyIdStart + c,
+                     0,
+                     peer,
+                     s"$peer-$c",
+                     None,
+                     Nil,
+                     Nil))
       .toList
 
   def pusers(count: Int) =
@@ -196,17 +212,48 @@ class FlowTest
 
   }
 
-
   // should filter conversations with "done" progress   ---| single test
   // should restore from single-range "undone" progress ---|
 
   it should "restore from progress" in {
-    val prg = List(
-      ppr(201, 0 -> 800)
+
+    val s = pmanyIdStart
+
+    val msg = List(
+      pmany(1, 215),
+      pmany(2, 215),
+      pmany(3, 150),
+      pmany(4, 300)
     )
+
+    val prg = List(
+      1 -> ppr(s + 215, 0 -> 215),
+      2 -> ppr(s + 215, 0 -> 115, 116 -> 215), // todo least offset restore impl
+      3 -> ppr(s + 140, 0 -> 150), // todo maybe update msgid on wrong offsets?
+      4 -> ppr(s + 200, 0 -> 200)
+    )
+
+    val input = pconvItem(pmsgId(s + 215))(1, 2) ::: pconvItem(pmsgId(s + 150))(
+      3) ::: pconvItem(pmsgId(s + 200))(4)
+
+    val outMsg = List(
+      pmany(4, 300).drop(200)
+    )
+
+    val outPrg = prg.toMap ++ List(
+      4 -> ppr(s + 300, 0 -> 300)
+    )
+
+    msg.foreach(m => api.pushMsg(m.head.peer_id, m))
+    prg.foreach { case (p, v) => db.setProgress(p, v) }
+
+    val f1 = flow.msgFlow(input)
+    awaitU(f1)
+
+    db.msgM.asScala.toList shouldBe outMsg
+    db.progress.toList shouldBe outPrg.toList.map { case (p, v) => p -> v.stringRepr }
+
   }
-
-
   // should handle errors
   // (later) should restore from multiple-ranges progress
 
