@@ -68,9 +68,11 @@ class FlowTest
   def pmsg(peer: Int, id: Int, text: String) =
     ApiMessage(0, 1, id, 0, peer, text, None, Nil, Nil)
 
+  val pmanyIdStart = 10000
+
   def pmany(peer: Int, count: Int) =
     (1 to count)
-      .map(c => ApiMessage(0, 1, c, 0, peer, s"$peer-$c", None, Nil, Nil))
+      .map(c => ApiMessage(0, 1, pmanyIdStart + c, 0, peer, s"$peer-$c", None, Nil, Nil))
       .toList
 
   def pusers(count: Int) =
@@ -188,8 +190,9 @@ class FlowTest
     val r1 = db.getProgress(1)
     val r2 = db.getProgress(2)
 
-    r1.get shouldBe CachedMsgProgress(0 -> 200 :: Nil, 15)
-    r2.get shouldBe CachedMsgProgress(0 -> 400 :: Nil, 235)
+    val s = pmanyIdStart
+    r1.get shouldBe CachedMsgProgress(0 -> 15 :: Nil, s + 15)
+    r2.get shouldBe CachedMsgProgress(0 -> 235 :: Nil, s + 235)
 
   }
 
@@ -199,7 +202,7 @@ class FlowTest
 
   it should "restore from progress" in {
     val prg = List(
-
+      ppr(201, 0 -> 800)
     )
   }
 

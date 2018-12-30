@@ -211,12 +211,13 @@ class DumperFlow(db: DB, api: Api, cfg: Cfg)(implicit sys: ActorSystem)
           .mapAsync(parInner) {
             case (r, Chunk(peer, offset, count, pos)) =>
               val last = r.items.last.id
+              val realCount = r.items.length
               db.addMessages(r.items)
                 .flatMap(_ => db.addProfiles(r.profiles))
                 .map { _ =>
                   db.updateProgress(peer) { opt =>
                     val old = opt.map(_.ranges).getOrElse(Nil)
-                    val nr = mergeRanges(offset -> (offset + count), old)
+                    val nr = mergeRanges(offset -> (offset + realCount), old)
                     CachedMsgProgress(nr, last)
                   }
 
