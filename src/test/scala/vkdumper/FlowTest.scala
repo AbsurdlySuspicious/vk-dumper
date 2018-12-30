@@ -234,7 +234,7 @@ class FlowTest
     )
 
     val input = pconvItem(pmsgId(s + 215))(1, 2) ::: pconvItem(pmsgId(s + 150))(
-      3) ::: pconvItem(pmsgId(s + 200))(4)
+      3) ::: pconvItem(pmsgId(s + 300))(4)
 
     val outMsg = List(
       pmany(4, 300).drop(200)
@@ -250,7 +250,7 @@ class FlowTest
     val f1 = flow.msgFlow(input)
     awaitU(f1)
 
-    db.msgM.asScala.toList shouldBe outMsg
+    db.msgM.asScala.toList shouldBe outMsg.flatten
     db.progress.toList shouldBe outPrg.toList.map { case (p, v) => p -> v.stringRepr }
 
   }

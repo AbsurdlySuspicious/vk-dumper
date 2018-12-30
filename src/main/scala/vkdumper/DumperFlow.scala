@@ -181,11 +181,7 @@ class DumperFlow(db: DB, api: Api, cfg: Cfg)(implicit sys: ActorSystem)
         .filter { pm =>
           val pr = pm.progress
           pr.isEmpty || pr.exists(p =>
-            p.ranges.length <= 1 && p.lastMsgId != pm.last)
-        }
-        .map { pm =>
-          logger.info(s"pm filter passed: $pm")
-          pm
+            p.ranges.length > 1 || p.lastMsgId != pm.last)
         }
         .to[Iterable]
 
