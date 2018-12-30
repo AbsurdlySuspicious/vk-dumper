@@ -16,6 +16,7 @@ libraryDependencies ++= Seq(
 ).map(_ % sttpV)
 
 libraryDependencies ++= Seq(
+  "com.github.scopt" %% "scopt" % "4.0.0-RC2",
   "com.chuusai" %% "shapeless" % "2.3.3",
   "org.json4s" %% "json4s-jackson" % "3.6.2",
   "io.monix" %% "monix-eval" % "3.0.0-RC2",
