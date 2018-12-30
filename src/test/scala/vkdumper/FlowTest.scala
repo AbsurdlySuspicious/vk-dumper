@@ -1,21 +1,19 @@
 package vkdumper
 
+import java.net.SocketException
+
 import akka.actor.ActorSystem
 import com.typesafe.scalalogging.LazyLogging
 import org.scalatest._
 import Utils._
 import org.json4s._
 import org.json4s.jackson.JsonMethods._
-import vkdumper.ApiData.{
-  ApiConvId,
-  ApiConvListItem,
-  ApiConversation,
-  ApiMessage,
-  ApiUser
-}
+import vkdumper.ApiData.{ApiConvId, ApiConvListItem, ApiConversation, ApiError, ApiMessage, ApiUser, HttpError}
+import vkdumper.MockingCommon.CLQ
 
 import scala.collection.JavaConverters._
 import scala.util.Random
+import scala.language.implicitConversions
 
 class FlowTest
     extends FlatSpec
@@ -214,6 +212,7 @@ class FlowTest
 
   // should filter conversations with "done" progress   ---| single test
   // should restore from single-range "undone" progress ---|
+  // \/ \/ \/
 
   it should "restore from progress" in {
 
@@ -254,7 +253,40 @@ class FlowTest
     db.progress.toList shouldBe outPrg.toList.map { case (p, v) => p -> v.stringRepr }
 
   }
-  // should handle errors
+
+  it should "handle errors" in {
+
+    implicit def clq[T](lst: List[T]): CLQ[T] =
+      new CLQ(lst.asJava)
+
+    def t(tr: Int) = tr -> 0
+
+    val msgIn = List(
+      1 -> pmany(1, 1),
+      2 -> pmany(2, 1),
+      3 -> pmany(3, 1)
+    )
+
+    val msgOut = List(
+      pmany(1, 1),
+      pmany(2, 1)
+    )
+
+
+    msgIn.foreach { case (p, m) => api.pushMsg(p, m) }
+
+    api.historyErrors(t(1)) = HttpError(500) :: Nil
+    api.historyErrors(t(2)) = new SocketException("foo") :: Nil
+    api.historyErrors(t(3)) = ApiError(1337, "") :: Nil
+
+    val f1 = flow.msgFlow(pconvItem(pmsg)(1, 2, 3))
+    awaitU(f1)
+
+    db.msgM.asScala.toList shouldBe msgOut.flatten
+
+  }
+
+
   // (later) should restore from multiple-ranges progress
 
 }
