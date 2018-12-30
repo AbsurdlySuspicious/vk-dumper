@@ -53,14 +53,39 @@ object VkDumper extends App with LazyLogging {
   }
 
   val cfgP = new Conf(cfgJ)
+
+  val rt = new DumperRoutine(cfgP)
+  val boot = rt.boot match {
+    case Some(b) => b
+    case None =>
+      rt.stop()
+      esc(1)
+  }
 }
 
-object Exp extends App with LazyLogging {
+class DumperRoutine(conf: Conf) {
 
-  //implicit val sys: ActorSystem = ActorSystem()
-  //val flow = new DumperFlow(null, null, null)
+  case class Boot(uid: Int, db: DB)
 
-  implicit val formats: Formats = Serialization.formats(NoTypeHints)
+  implicit val sys: ActorSystem = ActorSystem()
 
-  //sys.terminate()
+  val cfg = conf.cfg
+  val api = new Api(cfg)
+
+  def stop(): Unit = {
+    api.sttpBack.close()
+    awaitU(sys.terminate())
+  }
+
+  def stopAfterBoot(b: Boot): Unit = {
+    b.db.close()
+    stop()
+  }
+
+  def boot: Option[Boot] = {
+    // api get uid
+    // open db
+    ???
+  }
+
 }
