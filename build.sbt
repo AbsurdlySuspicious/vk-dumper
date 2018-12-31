@@ -2,6 +2,14 @@ name := "vk-dumper"
 version := "0.2"
 scalaVersion := "2.12.8"
 
+mainClass in assembly := Some("vkdumper.VkDumper")
+assemblyJarName in assembly := "vkdumper.jar"
+
+assemblyMergeStrategy in assembly := {
+  case nt if nt.endsWith("META-INF/io.netty.versions.properties") => MergeStrategy.first
+  case x => MergeStrategy.defaultMergeStrategy(x)
+}
+
 val akkaV = "2.5.18"
 libraryDependencies ++= Seq(
   "com.typesafe.akka" %% "akka-stream",
