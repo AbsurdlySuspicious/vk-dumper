@@ -8,14 +8,17 @@ import com.typesafe.scalalogging.LazyLogging
 import scala.io.{Codec, Source}
 import scala.language.postfixOps
 import Utils._
+import EC._
 
 import scala.concurrent.duration._
+import scala.collection.JavaConverters._
 import scala.runtime.ScalaRunTime
 import org.json4s.jackson.Serialization
 import org.json4s.jackson.Serialization._
 import org.json4s._
 import org.json4s.jackson.JsonMethods._
 import scopt.OParser
+import vkdumper.ApiData.Res
 
 sealed trait Modes
 case object Noop extends Modes
@@ -30,21 +33,6 @@ case class Options(
 object VkDumper extends App with LazyLogging {
 
   implicit val codec: Codec = Codec.UTF8
-
-  val usage = """
-                |Usage:
-                |  -c FILE : Provide config as file
-                |  -i CFG  : Provide inline config as string
-                |  -g      : Generate default config to stdout
-              """.stripMargin
-
-  def esc(m: String, code: Int = 1): Nothing = {
-    println(m)
-    System.exit(code)
-    throw new Exception("trap")
-  }
-
-  def esc(code: Int): Nothing = esc("", code)
 
   val apb = OParser.builder[Options]
   val ap = {
@@ -95,6 +83,11 @@ object VkDumper extends App with LazyLogging {
       rt.stop()
       esc(1)
   }
+
+  rt.flow(boot)
+  rt.stopAfterBoot(boot)
+
+  con("\nDone")
 }
 
 class DumperRoutine(conf: Conf) {
@@ -116,10 +109,40 @@ class DumperRoutine(conf: Conf) {
     stop()
   }
 
-  def boot: Option[Boot] = {
-    // api get uid
-    // open db
-    ???
+  val oneReqTimeout = 60.seconds
+  val longTimeout = 650.days
+
+  def boot: Option[Boot] =
+    awaitT(oneReqTimeout, api.getMe.runToFuture) match {
+      case Res(me :: Nil) =>
+        con(s"User: [${me.id}] ${me.first_name} ${me.last_name}")
+        val db = new DB(FilePath(me.id, cfg.baseDir))
+        Some(Boot(me.id, db))
+      case e =>
+        con(e.toString)
+        None
+    }
+
+  def flow(boot: Boot): Unit = try {
+    val flows = new DumperFlow(boot.db, api, cfg)
+
+    val convCount = awaitT(oneReqTimeout, api.getConversations(0, 0).runToFuture) match {
+      case Res(c) => c.count
+      case e =>
+        con(s"Failure (on convCount): $e")
+        return
+    }
+
+    val convList = awaitT(longTimeout, flows.convFlow(convCount))
+
+    awaitU(longTimeout, flows.msgFlow(convList.asScala.toList))
   }
+  catch {
+    case e: Throwable =>
+      con(s"Failure: $e")
+      ()
+  }
+
+
 
 }

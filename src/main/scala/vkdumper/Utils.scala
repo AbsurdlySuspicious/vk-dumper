@@ -127,6 +127,15 @@ object Utils {
   def awaitU(time: FiniteDuration, as: Awaitable[Any]*): Unit =
     as.foreach(awaitT(time, _))
 
+  def esc(m: String, code: Int = 1): Nothing = {
+    println(m)
+    System.exit(code)
+    throw new Exception("trap")
+  }
+
+  def esc(code: Int): Nothing =
+    esc("", code)
+
   trait ProductToString { this: Product =>
     override def toString = ScalaRunTime._toString(this)
   }
