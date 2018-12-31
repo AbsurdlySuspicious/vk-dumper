@@ -7,4 +7,5 @@ cfg
 *.log
 .attach*
 tests_temp/
+DumpedData
 
