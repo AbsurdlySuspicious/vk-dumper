@@ -5,10 +5,13 @@ scalaVersion := "2.12.8"
 mainClass in assembly := Some("vkdumper.VkDumper")
 assemblyJarName in assembly := "vkdumper.jar"
 
+test in assembly := {}
+
 assemblyMergeStrategy in assembly := {
   case nt if nt.endsWith("META-INF/io.netty.versions.properties") => MergeStrategy.first
   case x => MergeStrategy.defaultMergeStrategy(x)
 }
+
 
 val akkaV = "2.5.18"
 libraryDependencies ++= Seq(

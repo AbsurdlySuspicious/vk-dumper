@@ -53,6 +53,8 @@ class DumperFlow(db: DB, api: Api, cfg: Cfg)(implicit sys: ActorSystem)
   val mDelay = 5.seconds
   val bpDelay = 120.seconds
 
+  val apiErrorsToRetry = List(tooManyRequests, tooManyActions, serverError)
+
   def retryFun[B]: (Throwable, Int, Int => Task[B]) => Task[B] = {
     (t, mr, retryTask) =>
       def retry =
@@ -81,12 +83,16 @@ class DumperFlow(db: DB, api: Api, cfg: Cfg)(implicit sys: ActorSystem)
               case HttpError(code) =>
                 logger.error(s"Http error: $code")
                 retry
-              case ApiError(`tooManyRequests`, _) =>
-                logger.error("Too many requests, pausing stream")
-                retry
               case ApiError(code, m) =>
                 logger.error(s"Api error $code: $m")
-                abandon
+                if (apiErrorsToRetry.contains(code)) {
+                  logger.info(s"Retrying request in $mDelay")
+                  retry
+                }
+                else {
+                  logger.info(s"Abandoning request")
+                  abandon
+                }
             }
           case e: Exception =>
             logger.error(s"Unknown error: ${e.getMessage}")

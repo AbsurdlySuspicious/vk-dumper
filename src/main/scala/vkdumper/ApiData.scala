@@ -7,6 +7,7 @@ import org.json4s.jackson.JsonMethods._
 
 object ApiErrors {
   val tooManyRequests = 6
+  val serverError = 10
   val tooManyActions = 9
   val authorizationFailed = 5
   val noPermissions = 7
