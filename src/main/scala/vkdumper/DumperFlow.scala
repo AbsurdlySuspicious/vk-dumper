@@ -178,7 +178,7 @@ class DumperFlow(db: DB, api: Api, cfg: Cfg)(implicit sys: ActorSystem)
     val parInner = 1
 
     val inLn = list.length
-    val input: Iterable[ConvPreMap] = // todo check progress filter
+    val input: Iterable[ConvPreMap] = // progress bug due to rev
       list.view.zipWithIndex
         .map {
           case (ApiConvListItem(c, m), cn) =>
