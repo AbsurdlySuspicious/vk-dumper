@@ -58,13 +58,14 @@ class Api(cfg: Cfg) {
 
   def getHistory(peer: Int,
                  offset: Int,
-                 count: Int): Task[Result[ApiConvMsgResp]] =
+                 count: Int,
+                 rev: Boolean): Task[Result[ApiConvMsgResp]] =
     get(
       "messages.getHistory",
       "peer_id" -> peer.toString,
       "offset" -> offset.toString,
       "count" -> count.toString,
-      "rev" -> "0", // todo revert to rev 1 after api bug fix
+      "rev" -> (if (rev) "1" else "0"),
       "extended" -> "1",
       "fields" -> apiConvMsgFields
     ).send()

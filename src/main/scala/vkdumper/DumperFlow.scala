@@ -88,8 +88,7 @@ class DumperFlow(db: DB, api: Api, cfg: Cfg)(implicit sys: ActorSystem)
                 if (apiErrorsToRetry.contains(code)) {
                   logger.info(s"Retrying request in $mDelay")
                   retry
-                }
-                else {
+                } else {
                   logger.info(s"Abandoning request")
                   abandon
                 }
@@ -159,9 +158,10 @@ class DumperFlow(db: DB, api: Api, cfg: Cfg)(implicit sys: ActorSystem)
 
   private def history(peer: Int,
                       offset: Int,
-                      count: Int): Task[ApiConvMsgResp] =
+                      count: Int,
+                      rev: Boolean = true): Task[ApiConvMsgResp] =
     api
-      .getHistory(peer, offset, count)
+      .getHistory(peer, offset, count, rev)
       .flatMap(apiFMap)
       .onErrorRestartLoop(mRetry)(retryFun)
 
@@ -178,7 +178,7 @@ class DumperFlow(db: DB, api: Api, cfg: Cfg)(implicit sys: ActorSystem)
     val parInner = 1
 
     val inLn = list.length
-    val input: Iterable[ConvPreMap] = // progress bug due to rev
+    val input: Iterable[ConvPreMap] =
       list.view.zipWithIndex
         .map {
           case (ApiConvListItem(c, m), cn) =>
@@ -194,7 +194,7 @@ class DumperFlow(db: DB, api: Api, cfg: Cfg)(implicit sys: ActorSystem)
     Source(input)
       .throttle(thrCount, thrTime)
       .mapAsync(parOuter) { pm =>
-        history(pm.peer, 0, 0).map { r =>
+        history(pm.peer, 0, 0, rev = false).map { r =>
           val o = pm.progress.map(_.lastOffset).getOrElse(0)
           pm.conv(o, r.count)
         }.runToFuture

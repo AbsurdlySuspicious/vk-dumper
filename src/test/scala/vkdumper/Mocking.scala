@@ -82,7 +82,7 @@ class ApiMock(opts: MockingOpts)
   override def getMe = ns
   override def getMsgByConvId(peer: Int, cids: Seq[Long]) = ns
 
-  override def getHistory(peer: Int, offset: Int, count: Int) = Task {
+  override def getHistory(peer: Int, offset: Int, count: Int, rev: Boolean) = Task {
     val pe = Option(historyErrors.getOrElse(peer -> offset, new CLQ).poll())
     pe.getOrElse(unit) match {
       case e: ResErr => e
