@@ -1,5 +1,7 @@
 package vkdumper
 
+import java.io.{FileOutputStream, PrintWriter}
+
 import monix.execution.Scheduler
 
 import scala.annotation.tailrec
@@ -135,6 +137,14 @@ object Utils {
 
   def esc(code: Int): Nothing =
     esc("", code)
+
+  def pwHelper(file: String, content: String, append: Boolean): Unit = {
+    val o = new FileOutputStream(file, append)
+    val pw = new PrintWriter(o)
+    pw.println(content)
+    pw.flush()
+    pw.close()
+  }
 
   trait ProductToString { this: Product =>
     override def toString = ScalaRunTime._toString(this)

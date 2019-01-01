@@ -55,6 +55,9 @@ case class FilePath(uid: Int,
   val msgLog =
     Some(root(s"msg_$uid.csv"))
 
+  val accLog =
+    s"$baseDir/dumped_users.log"
+
   def bootstrap(): Unit = {
     baseDirFile.mkdir()
     uidRootFile.mkdir()

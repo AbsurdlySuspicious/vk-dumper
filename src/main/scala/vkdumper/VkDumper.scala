@@ -115,9 +115,11 @@ class DumperRoutine(conf: Conf) {
   def boot: Option[Boot] =
     awaitT(oneReqTimeout, api.getMe.runToFuture) match {
       case Res(me :: Nil) =>
-        con(s"User: [${me.id}] ${me.first_name} ${me.last_name}")
+        val userStr = s"User: [${me.id}] ${me.first_name} ${me.last_name}"
+        con(userStr)
         val fp = FilePath(me.id, cfg.baseDir)
         val db = new DB(fp)
+        pwHelper(fp.accLog, userStr, append = true)
         Some(Boot(me.id, db, fp))
       case e =>
         con(e.toString)
@@ -141,11 +143,7 @@ class DumperRoutine(conf: Conf) {
 
     boot.fp.convLog.foreach { p =>
       implicit val formats: Formats = Serialization.formats(NoTypeHints)
-
-      val f = new FileOutputStream(p, false)
-      val pw = new PrintWriter(f)
-      pw.println(convList.map(write(_)).mkString(","))
-      pw.close()
+      pwHelper(p, convList.map(write(_)).mkString(","), append = false)
     }
 
     awaitU(longTimeout, flows.msgFlow(convList))
