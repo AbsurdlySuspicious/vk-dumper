@@ -64,7 +64,7 @@ class Api(cfg: Cfg) {
       "peer_id" -> peer.toString,
       "offset" -> offset.toString,
       "count" -> count.toString,
-      "rev" -> "1",
+      "rev" -> "0", // todo revert to rev 1 after api bug fix
       "extended" -> "1",
       "fields" -> apiConvMsgFields
     ).send()
