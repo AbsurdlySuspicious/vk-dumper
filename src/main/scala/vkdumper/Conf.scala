@@ -20,7 +20,7 @@ case class Cfg(
     readTimeout: Int = 10,
     commonPar: Int = 4,
     throttleCount: Int = 3,
-    throttlePeriod: Int = 1,
+    throttlePeriod: Double = 1,
     baseDir: String = "DumpedData",
     token: String
 ) {
