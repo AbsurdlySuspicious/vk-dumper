@@ -178,7 +178,7 @@ class DumperFlow(db: DB, api: Api, cfg: Cfg)(implicit sys: ActorSystem)
     val parInner = 1
 
     val inLn = list.length
-    val input: Iterable[ConvPreMap] =
+    val input: Iterable[ConvPreMap] = // todo check progress filter
       list.view.zipWithIndex
         .map {
           case (ApiConvListItem(c, m), cn) =>
@@ -233,7 +233,7 @@ class DumperFlow(db: DB, api: Api, cfg: Cfg)(implicit sys: ActorSystem)
           .runWith(Sink.lastOption)
           .map {
             case Some(ChunkResp(peer, _, pos)) => prog.msgDone(peer, pos)
-            case _                             => ()
+            case _                             => logger.info("none on inner"); ()
           }
       }
       .runWith(Sink.lastOption)

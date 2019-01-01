@@ -151,9 +151,7 @@ class DumperRoutine(conf: Conf) {
     awaitU(longTimeout, flows.msgFlow(convList))
   }
   catch {
-    case e: Throwable =>
-      con(s"Failure: $e")
-      ()
+    case e: Throwable => con(s"Failure: $e")
   }
 
 
