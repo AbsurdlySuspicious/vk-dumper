@@ -1,6 +1,6 @@
 package vkdumper
 
-import java.io.File
+import java.io.{File, FileOutputStream, PrintWriter}
 
 import akka.actor.ActorSystem
 import com.typesafe.scalalogging.LazyLogging
@@ -92,7 +92,7 @@ object VkDumper extends App with LazyLogging {
 
 class DumperRoutine(conf: Conf) {
 
-  case class Boot(uid: Int, db: DB)
+  case class Boot(uid: Int, db: DB, fp: FilePath)
 
   implicit val sys: ActorSystem = ActorSystem()
 
@@ -116,8 +116,9 @@ class DumperRoutine(conf: Conf) {
     awaitT(oneReqTimeout, api.getMe.runToFuture) match {
       case Res(me :: Nil) =>
         con(s"User: [${me.id}] ${me.first_name} ${me.last_name}")
-        val db = new DB(FilePath(me.id, cfg.baseDir))
-        Some(Boot(me.id, db))
+        val fp = FilePath(me.id, cfg.baseDir)
+        val db = new DB(fp)
+        Some(Boot(me.id, db, fp))
       case e =>
         con(e.toString)
         None
@@ -133,9 +134,21 @@ class DumperRoutine(conf: Conf) {
         return
     }
 
-    val convList = awaitT(longTimeout, flows.convFlow(convCount))
+    val convList =
+      awaitT(longTimeout, flows.convFlow(convCount))
+          .asScala
+          .toList
 
-    awaitU(longTimeout, flows.msgFlow(convList.asScala.toList))
+    boot.fp.convLog.foreach { p =>
+      implicit val formats: Formats = Serialization.formats(NoTypeHints)
+
+      val f = new FileOutputStream(p, false)
+      val pw = new PrintWriter(f)
+      pw.println(convList.map(write(_)).mkString(","))
+      pw.close()
+    }
+
+    awaitU(longTimeout, flows.msgFlow(convList))
   }
   catch {
     case e: Throwable =>
