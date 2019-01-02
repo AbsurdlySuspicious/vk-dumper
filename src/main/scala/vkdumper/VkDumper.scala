@@ -6,6 +6,9 @@ import akka.actor.ActorSystem
 import com.typesafe.scalalogging.LazyLogging
 
 import scala.io.{Codec, Source}
+import java.time._
+import java.time.format.DateTimeFormatter
+
 import scala.language.postfixOps
 import Utils._
 import EC._
@@ -115,11 +118,12 @@ class DumperRoutine(conf: Conf) {
   def boot: Option[Boot] =
     awaitT(oneReqTimeout, api.getMe.runToFuture) match {
       case Res(me :: Nil) =>
-        val userStr = s"User: [${me.id}] ${me.first_name} ${me.last_name}"
-        con(userStr)
+        val date = LocalDateTime.now.format(DateTimeFormatter.ofPattern("YYYY.MM.DD HH:MM"))
+        val userStr = s"[${me.id}] ${me.first_name} ${me.last_name}"
+        con(s"User: $userStr")
         val fp = FilePath(me.id, cfg.baseDir)
         val db = new DB(fp)
-        pwHelper(fp.accLog, userStr, append = true)
+        pwHelper(fp.accLog, s"$date: $userStr", append = true)
         Some(Boot(me.id, db, fp))
       case e =>
         con(e.toString)
