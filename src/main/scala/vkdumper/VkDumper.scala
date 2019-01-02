@@ -137,7 +137,7 @@ class DumperRoutine(conf: Conf) {
     awaitT(oneReqTimeout, api.getMe.runToFuture) match {
       case Res(me :: Nil) =>
         val date = LocalDateTime.now.format(
-          DateTimeFormatter.ofPattern("YYYY.MM.DD HH:MM"))
+          DateTimeFormatter.ofPattern("uuuu.MM.dd HH:mm"))
         val userStr = s"[${me.id}] ${me.first_name} ${me.last_name}"
         con(s"User: $userStr")
         val fp = FilePath(me.id, cfg.baseDir)
