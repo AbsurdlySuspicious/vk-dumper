@@ -20,75 +20,93 @@ import org.json4s.jackson.Serialization
 import org.json4s.jackson.Serialization._
 import org.json4s._
 import org.json4s.jackson.JsonMethods._
-import scopt.OParser
+import scopt.{OParser, OptionParser}
 import vkdumper.ApiData.Res
 
-sealed trait Modes
-case object Noop extends Modes
-case object Download extends Modes
-case object GenCfg extends Modes
+sealed trait Mode
+//case object Noop extends Mode
+case object Download extends Mode
+case object GenCfg extends Mode
 
 case class Options(
     config: File = new File("vkdumper.cfg"),
-    mode: Modes = Noop
+    modes: List[Mode] = Nil
 )
 
 object VkDumper extends App with LazyLogging {
 
   implicit val codec: Codec = Codec.UTF8
 
-  val apb = OParser.builder[Options]
-  val ap = {
-    import apb._
+  val optsParser: OptionParser[Options] =
+    new scopt.OptionParser[Options]("vkdumper") {
 
-    OParser.sequence(
-      programName("vkdumper"),
-      help("help").text("print usage"),
+      head("vkdumper 0.2")
+      note("modes:")
+
+      opt[Unit]('D', "download")
+        .text("Download all conversations")
+        .action((_, o) => o.copy(modes = Download :: o.modes))
+
+      opt[Unit]('G', "gencfg")
+        .text("Generate default config to stdout")
+        .action((_, o) => o.copy(modes = GenCfg :: o.modes))
+
+      checkConfig { o =>
+        val m = o.modes
+        if (m.isEmpty) failure("No mode selected")
+        else if (m.length > 1) failure("Only one mode should be selected")
+        else success
+      }
+
+      note("options:")
+
       opt[File]('c', "cfg")
-        .valueName("<FILE>")
+        .text("Config, defaults to vkdumper.cfg")
+        .required()
+        .withFallback(() => new File("vkdumper.cfg"))
+        .validate { f =>
+          if (!f.exists) failure(s"No file ${f.getName} exists")
+          else if (!f.isFile) failure(s"${f.getName} is a directory")
+          else success
+        }
         .action((f, o) => o.copy(config = f))
-        .text("Config, defaults to vkdumper.cfg"),
-      cmd("D")
-        .text("Download messages")
-        .action((_, o) => o.copy(mode = Download)),
-      cmd("G")
-        .text("Generate default config")
-        .action((_, o) => o.copy(mode = GenCfg))
-    )
-  }
 
-  val opts = OParser.parse(ap, args, Options()) match {
-    case Some(c) => c
-    case None => esc(1)
-  }
+      help("help")
+        .text("Print usage text")
 
-  opts.mode match {
-    case Download => ()
-    case GenCfg => esc(Conf.default, 0)
-    case Noop => esc("No mode selected")
+      note("\n")
+    }
+
+  val opts = optsParser.parse(args, Options()) match {
+    case Some(o) => o
+    case None    => esc(1)
   }
+  def cm(m: Mode) =
+    opts.modes.contains(m)
+
+  if (cm(GenCfg))
+    esc(Conf.default, 0)
 
   val cfgP = {
     val f = opts.config
-    if (!f.exists) esc(s"No file ${f.getName} exists")
-    if (!f.isFile) esc(s"${f.getName} is a directory")
-
     val in = Source.fromFile(f)
     val lines = in.getLines().mkString("\n")
     in.close()
     new Conf(lines)
   }
 
-  val rt = new DumperRoutine(cfgP)
-  val boot = rt.boot match {
-    case Some(b) => b
-    case None =>
-      rt.stop()
-      esc(1)
-  }
+  if (cm(Download)) {
+    val rt = new DumperRoutine(cfgP)
+    val boot = rt.boot match {
+      case Some(b) => b
+      case None =>
+        rt.stop()
+        esc(1)
+    }
 
-  rt.flow(boot)
-  rt.stopAfterBoot(boot)
+    rt.flow(boot)
+    rt.stopAfterBoot(boot)
+  }
 
   con("\nDone")
 }
@@ -118,7 +136,8 @@ class DumperRoutine(conf: Conf) {
   def boot: Option[Boot] =
     awaitT(oneReqTimeout, api.getMe.runToFuture) match {
       case Res(me :: Nil) =>
-        val date = LocalDateTime.now.format(DateTimeFormatter.ofPattern("YYYY.MM.DD HH:MM"))
+        val date = LocalDateTime.now.format(
+          DateTimeFormatter.ofPattern("YYYY.MM.DD HH:MM"))
         val userStr = s"[${me.id}] ${me.first_name} ${me.last_name}"
         con(s"User: $userStr")
         val fp = FilePath(me.id, cfg.baseDir)
@@ -130,32 +149,29 @@ class DumperRoutine(conf: Conf) {
         None
     }
 
-  def flow(boot: Boot): Unit = try {
-    val flows = new DumperFlow(boot.db, api, cfg)
+  def flow(boot: Boot): Unit =
+    try {
+      val flows = new DumperFlow(boot.db, api, cfg)
 
-    val convCount = awaitT(oneReqTimeout, api.getConversations(0, 0).runToFuture) match {
-      case Res(c) => c.count
-      case e =>
-        con(s"Failure (on convCount): $e")
-        return
+      val convCount =
+        awaitT(oneReqTimeout, api.getConversations(0, 0).runToFuture) match {
+          case Res(c) => c.count
+          case e =>
+            con(s"Failure (on convCount): $e")
+            return
+        }
+
+      val convList =
+        awaitT(longTimeout, flows.convFlow(convCount)).asScala.toList
+
+      boot.fp.convLog.foreach { p =>
+        implicit val formats: Formats = Serialization.formats(NoTypeHints)
+        pwHelper(p, convList.map(write(_)).mkString(","), append = false)
+      }
+
+      awaitU(longTimeout, flows.msgFlow(convList))
+    } catch {
+      case e: Throwable => con(s"Failure: $e")
     }
-
-    val convList =
-      awaitT(longTimeout, flows.convFlow(convCount))
-          .asScala
-          .toList
-
-    boot.fp.convLog.foreach { p =>
-      implicit val formats: Formats = Serialization.formats(NoTypeHints)
-      pwHelper(p, convList.map(write(_)).mkString(","), append = false)
-    }
-
-    awaitU(longTimeout, flows.msgFlow(convList))
-  }
-  catch {
-    case e: Throwable => con(s"Failure: $e")
-  }
-
-
 
 }
