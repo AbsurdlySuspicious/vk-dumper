@@ -88,7 +88,7 @@ object VkDumper extends App with LazyLogging {
     esc(Conf.default, 0)
 
   val cfgP = {
-    val f = opts.config
+    val f = opts.config //todo cfg file check here
     val in = Source.fromFile(f)
     val lines = in.getLines().mkString("\n")
     in.close()
