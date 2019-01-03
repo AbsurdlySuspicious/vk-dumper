@@ -37,62 +37,69 @@ object VkDumper extends App with LazyLogging {
 
   implicit val codec: Codec = Codec.UTF8
 
-  val optsParser: OptionParser[Options] =
-    new scopt.OptionParser[Options]("vkdumper") {
-
-      head("vkdumper 0.2")
-      note("modes:")
-
+  val optB = OParser.builder[Options]
+  val optP = {
+    import optB._
+    OParser.sequence(
+      programName("vkdumper"),
+      head("vkdumper 0.2"),
+      //
+      note("modes:"),
       opt[Unit]('D', "download")
         .text("Download all conversations")
-        .action((_, o) => o.copy(modes = Download :: o.modes))
-
+        .action((_, o) => o.copy(modes = Download :: o.modes)),
       opt[Unit]('G', "gencfg")
         .text("Generate default config to stdout")
-        .action((_, o) => o.copy(modes = GenCfg :: o.modes))
-
+        .action((_, o) => o.copy(modes = GenCfg :: o.modes)),
+      //
       checkConfig { o =>
         val m = o.modes
         if (m.isEmpty) failure("No mode selected")
         else if (m.length > 1) failure("Only one mode should be selected")
         else success
-      }
-
-      note("options:")
-
+      },
+      //
+      note("options:"),
       opt[File]('c', "cfg")
         .text("Config, defaults to vkdumper.cfg")
-        .required()
-        .withFallback(() => new File("vkdumper.cfg"))
-        .validate { f =>
-          if (!f.exists) failure(s"No file ${f.getName} exists")
-          else if (!f.isFile) failure(s"${f.getName} is a directory")
-          else success
-        }
-        .action((f, o) => o.copy(config = f))
-
+        .action((f, o) => o.copy(config = f)),
       help("help")
-        .text("Print usage text")
-
+        .text("Print usage text"),
+      //
       note("\n")
-    }
+    )
+  }
 
-  val opts = optsParser.parse(args, Options()) match {
+  val opts = OParser.parse(optP, args, Options()) match {
     case Some(o) => o
     case None    => esc(1)
   }
+
   def cm(m: Mode) =
     opts.modes.contains(m)
+
+  def optfail(m: String): Unit =
+    esc(s"Error: $m\nTry --help for more information.\n")
 
   if (cm(GenCfg))
     esc(Conf.default, 0)
 
   val cfgP = {
-    val f = opts.config //todo cfg file check here
-    val in = Source.fromFile(f)
-    val lines = in.getLines().mkString("\n")
-    in.close()
-    new Conf(lines)
+    val f = opts.config
+    if (!f.exists) optfail(s"No file ${f.getName} exists")
+    if (!f.isFile) optfail(s"${f.getName} is a directory")
+
+    try {
+      val in = Source.fromFile(f)
+      val lines = in.getLines().mkString("\n")
+      in.close()
+
+      new Conf(lines)
+    }
+    catch {
+      case e: Throwable =>
+        esc(s"Error: can't parse config ${opts.config}. Original exception:\n\n$e")
+    }
   }
 
   if (cm(Download)) {
