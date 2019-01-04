@@ -1,41 +1,48 @@
 package vkdumper
 
-import java.net.{
-  ConnectException,
-  NoRouteToHostException,
-  SocketException,
-  UnknownHostException
-}
-import java.util.concurrent.{
-  ConcurrentLinkedQueue,
-  ForkJoinPool,
-  TimeoutException
-}
-import java.util.concurrent.atomic.AtomicReference
+import java.net.{SocketException, UnknownHostException}
+import java.util.concurrent.ConcurrentLinkedQueue
 
-import ApiData._
-import ApiErrors._
-import akka.{Done, NotUsed}
-import akka.actor.{ActorRef, ActorSystem}
+import akka.actor.ActorSystem
 import akka.stream._
 import akka.stream.scaladsl._
-import akka.stream.stage._
 import com.typesafe.scalalogging.LazyLogging
-import monix.execution.Scheduler
-
-import scala.collection.immutable.Iterable
-import scala.concurrent.duration._
-import scala.concurrent._
-import scala.language.postfixOps
-import scala.util.Try
-import Utils._
 import monix.eval.Task
-import Const._
-import EC.genericSched
+import vkdumper.ApiData._
+import vkdumper.ApiErrors._
+import vkdumper.EC.genericSched
+import vkdumper.Utils._
 
 import scala.collection.JavaConverters._
-import scala.collection.immutable.{IndexedSeq, Iterable}
-import scala.collection.{SeqView, immutable}
+import scala.collection.immutable.Iterable
+import scala.concurrent._
+import scala.concurrent.duration._
+import scala.language.postfixOps
+
+case class ConvPos(total: Int, convN: Int, convCount: Int) {
+  val counter = con.counter(convCount, convN + 1)
+  val cs = s"$counter/$convCount"
+}
+
+case class Chunk(peer: Int, offset: Int, count: Int, pos: ConvPos) //extends WorkInput
+
+case class Conv(peer: Int, startOffset: Int, totalCount: Int, lastMsgId: Int, convNC: (Int, Int)) {
+
+  val (convN, convCount) = convNC
+  val pos = ConvPos(totalCount, convN, convCount)
+
+  def stream: Stream[Chunk] = {
+    val step = Const.msgOffsetStep
+
+    val s = Stream
+      .iterate(startOffset)(_ + step)
+      .takeWhile(_ < totalCount)
+      .map(o => Chunk(peer, o, step, pos))
+
+    s //++ List(TerminateFlow)
+  }
+
+}
 
 class DumperFlow(db: DB, api: Api, cfg: Cfg)(implicit sys: ActorSystem)
     extends LazyLogging {
@@ -108,7 +115,7 @@ class DumperFlow(db: DB, api: Api, cfg: Cfg)(implicit sys: ActorSystem)
     case Res(x)    => Task.now(x)
   }
 
-  type ConvFT = ConcurrentLinkedQueue[ApiConvListItem]
+  type ConvFT = ConcurrentLinkedQueue[ApiMessageItem]
 
   def convFlow(count: Int): Future[ConvFT] = {
     val (step, thrCount, thrTime) = (
@@ -159,7 +166,7 @@ class DumperFlow(db: DB, api: Api, cfg: Cfg)(implicit sys: ActorSystem)
   private def history(peer: Int,
                       offset: Int,
                       count: Int,
-                      rev: Boolean = true): Task[ApiConvMsgResp] =
+                      rev: Boolean = true): Task[ApiMessagesResponse] =
     api
       .getHistory(peer, offset, count, rev)
       .flatMap(apiFMap)
@@ -167,7 +174,7 @@ class DumperFlow(db: DB, api: Api, cfg: Cfg)(implicit sys: ActorSystem)
 
   // todo leastOffset
 
-  def msgFlow(list: List[ApiConvListItem]): Future[Unit] = {
+  def msgFlow(list: List[ApiMessageItem]): Future[Unit] = {
 
     val (thrCount, thrTime) = (
       cfg.thrCount,
@@ -181,7 +188,7 @@ class DumperFlow(db: DB, api: Api, cfg: Cfg)(implicit sys: ActorSystem)
     val input: Iterable[ConvPreMap] =
       list.view.zipWithIndex
         .map {
-          case (ApiConvListItem(c, m), cn) =>
+          case (ApiMessageItem(c, m), cn) =>
             ConvPreMap(c.peer.id, m.id, cn, inLn)
         }
         .filter { pm =>

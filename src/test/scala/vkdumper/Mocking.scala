@@ -16,7 +16,7 @@ import akka.actor.ActorRefFactory
 
 object MockingCommon {
   type RespMapK = (Int, Long)
-  type RespMapV = List[Task[Result[ApiConvMsgResp]]]
+  type RespMapV = List[Task[Result[ApiMessagesResponse]]]
   type CLQ[T] = ConcurrentLinkedQueue[T]
 
   def ns: Nothing = throw new UnsupportedOperationException("not mocked")
@@ -39,7 +39,7 @@ class ApiMock(opts: MockingOpts)
   val convReqs = new CLQ[ConvR]
 
   val msgResps = new TrieMap[Int, List[ApiMessage]]
-  val convResps = new CLQ[ApiConvListItem]
+  val convResps = new CLQ[ApiMessageItem]
   val userResps = new CLQ[ApiUser]
 
   val historyErrors = new TrieMap[(Int, Int), CLQ[Any]]
@@ -62,7 +62,7 @@ class ApiMock(opts: MockingOpts)
     c.addAll(o.asJava)
   }
 
-  def pushCv(c: List[ApiConvListItem]): Unit =
+  def pushCv(c: List[ApiMessageItem]): Unit =
     pushC(convResps, c)
 
   def pushUsers(u: List[ApiUser]): Unit =
@@ -92,11 +92,11 @@ class ApiMock(opts: MockingOpts)
         val rq = MsgR(peer, offset, count)
         msgReqs.add(rq)
         val rs = msgResps.get(peer) match {
-          case None => ApiConvMsgResp(0, Nil, u)
+          case None => ApiMessagesResponse(0, Nil, u)
           case Some(m) =>
             val storedCount = m.length
             val nl = m.slice(offset, offset + count)
-            ApiConvMsgResp(storedCount, nl, u)
+            ApiMessagesResponse(storedCount, nl, u)
         }
         Res(rs)
     }

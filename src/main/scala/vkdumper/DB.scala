@@ -1,21 +1,19 @@
 package vkdumper
 
-import java.io.{File, FileOutputStream, PrintWriter}
+import java.io.{ByteArrayOutputStream, File, FileOutputStream, PrintWriter}
 
-import akka.actor.{ActorRefFactory, Props}
+import akka.actor.{Actor, ActorRefFactory, Props}
+import com.typesafe.scalalogging.LazyLogging
+import org.json4s._
 import org.json4s.jackson.Serialization
 import org.json4s.jackson.Serialization._
-import org.json4s._
-import org.json4s.jackson.JsonMethods._
-import org.mapdb.{BTreeMap, DBMaker, Serializer}
+import org.mapdb.{DBMaker, Serializer}
 import vkdumper.ApiData.{ApiConversation, ApiMessage, ApiUser}
-import vkdumper.Utils.{CMPUtils, CachedMsgProgress}
-import EC._
-import com.typesafe.scalalogging.LazyLogging
-import monix.eval.Task
+import vkdumper.EC._
+import vkdumper.Utils.{CMPUtils, CachedMsgProgress, unit}
 
 import scala.collection.JavaConverters._
-import scala.concurrent.Future
+import scala.concurrent.{Future, Promise}
 
 sealed trait DBPathOpt
 case object DBDefault extends DBPathOpt
@@ -34,7 +32,8 @@ sealed trait DBCfg {
 
 case class FilePath(uid: Int,
                     baseDir: String,
-                    private val overrideDb: DBPathOpt = DBDefault) extends DBCfg {
+                    private val overrideDb: DBPathOpt = DBDefault)
+    extends DBCfg {
 
   private def root(p: String) = s"$baseDir/$uid/$p"
 
@@ -114,7 +113,8 @@ class DB(val fp: DBCfg)(implicit fac: ActorRefFactory) extends LazyLogging {
   def getProgress(peer: Int): Option[CachedMsgProgress] =
     progress.get(peer).map(CMPUtils.fromString)
 
-  def updateProgress(peer: Int)(f: Option[CachedMsgProgress] => CachedMsgProgress): Unit = {
+  def updateProgress(peer: Int)(
+      f: Option[CachedMsgProgress] => CachedMsgProgress): Unit = {
     val c = getProgress(peer)
     setProgress(peer, f(c))
   }
@@ -172,4 +172,55 @@ class FileWriterWrapper(path: Option[String], append: Boolean = true)(
     ref ! CloseFile
   }
 
+}
+
+sealed trait WriterMsg
+
+case class WriteBatch(es: Iterable[String], p: Promise[Unit] = Promise())
+    extends WriterMsg {
+  def future = p.future
+}
+
+case object CloseFile extends WriterMsg
+
+class FileWriter(path: Option[String], append: Boolean) extends Actor {
+
+  val (out, isCleanOnStart) = path match {
+    case Some(p) =>
+      val file = new File(p)
+      (
+        new FileOutputStream(file, append),
+        file.length < 2
+      )
+    case None =>
+      (
+        new ByteArrayOutputStream(),
+        true
+      )
+  }
+
+  val pw = new PrintWriter(out)
+
+  var cleanFile = isCleanOnStart
+
+  def writeEntry(e: String): Unit = {
+    val sep =
+      if (!cleanFile) ","
+      else {
+        cleanFile = false
+        ""
+      }
+    pw.print(s"$sep$e")
+  }
+
+  def receive = {
+    case WriteBatch(es, p) =>
+      es.foreach(writeEntry)
+      pw.flush()
+      p.success(unit)
+
+    case CloseFile =>
+      pw.flush()
+      pw.close()
+  }
 }

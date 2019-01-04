@@ -3,18 +3,15 @@ package vkdumper
 import java.io.{FileOutputStream, PrintWriter}
 
 import monix.execution.Scheduler
-
-import scala.annotation.tailrec
-import scala.concurrent.{Await, Awaitable, ExecutionContext}
-import scala.util.matching.Regex
-import scala.concurrent.duration._
-import Utils._
 import org.json4s.JsonDSL._
-import org.json4s.{DefaultReaders, Formats, NoTypeHints}
 import org.json4s.jackson.JsonMethods._
 import org.json4s.jackson.Serialization
-import org.json4s.jackson.Serialization._
+import org.json4s.{DefaultReaders, Formats, NoTypeHints}
+import vkdumper.Utils._
 
+import scala.annotation.tailrec
+import scala.concurrent.duration._
+import scala.concurrent.{Await, Awaitable}
 import scala.runtime.ScalaRunTime
 
 object EC {

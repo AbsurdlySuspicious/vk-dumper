@@ -1,27 +1,24 @@
 package vkdumper
 
-import java.io.{File, FileOutputStream, PrintWriter}
-
-import akka.actor.ActorSystem
-import com.typesafe.scalalogging.LazyLogging
-
-import scala.io.{Codec, Source}
+import java.io.File
 import java.time._
 import java.time.format.DateTimeFormatter
 
-import scala.language.postfixOps
-import Utils._
-import EC._
-
-import scala.concurrent.duration._
-import scala.collection.JavaConverters._
-import scala.runtime.ScalaRunTime
-import org.json4s.jackson.Serialization
-import org.json4s.jackson.Serialization._
+import akka.actor.ActorSystem
+import com.typesafe.scalalogging.LazyLogging
 import org.json4s._
 import org.json4s.jackson.JsonMethods._
-import scopt.{OParser, OptionParser}
+import org.json4s.jackson.Serialization
+import org.json4s.jackson.Serialization._
+import scopt.OParser
 import vkdumper.ApiData.Res
+import vkdumper.EC._
+import vkdumper.Utils._
+
+import scala.collection.JavaConverters._
+import scala.concurrent.duration._
+import scala.io.{Codec, Source}
+import scala.language.postfixOps
 
 sealed trait Mode
 //case object Noop extends Mode
@@ -32,6 +29,48 @@ case class Options(
     config: File = new File("vkdumper.cfg"),
     modes: List[Mode] = Nil
 )
+
+object Const {
+  val msgStep = 100
+  val msgOffsetStep = 200
+  val convStep = 200
+  val convStartId = 2000000000
+}
+
+case class Cfg(
+    fallbackAttempts: Int = 3,
+    connectionTimeout: Int = 10,
+    readTimeout: Int = 10,
+    commonPar: Int = 4,
+    throttleCount: Int = 3,
+    throttlePeriod: Double = 1,
+    baseDir: String = "DumpedData",
+    token: String
+) {
+
+  val thrCount = throttleCount
+  val thrTime = throttlePeriod.seconds
+
+}
+
+object Conf {
+
+  implicit val fmt: Formats = DefaultFormats
+
+  def default: String = {
+    val fmtS: AnyRef with Formats = Serialization.formats(NoTypeHints)
+    val c = Cfg(token = "")
+    val s = write(c)(fmtS)
+    pretty(parse(s))
+  }
+}
+
+class Conf(json: String) {
+  import Conf._
+
+  private val j = parse(json)
+  val cfg = j.extract[Cfg]
+}
 
 object VkDumper extends App with LazyLogging {
 
@@ -95,10 +134,10 @@ object VkDumper extends App with LazyLogging {
       in.close()
 
       new Conf(lines)
-    }
-    catch {
+    } catch {
       case e: Throwable =>
-        esc(s"Error: can't parse config ${opts.config}. Original exception:\n\n$e")
+        esc(
+          s"Error: can't parse config ${opts.config}. Original exception:\n\n$e")
     }
   }
 

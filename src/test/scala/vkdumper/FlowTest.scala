@@ -8,7 +8,7 @@ import org.scalatest._
 import Utils._
 import org.json4s._
 import org.json4s.jackson.JsonMethods._
-import vkdumper.ApiData.{ApiConvId, ApiConvListItem, ApiConversation, ApiError, ApiMessage, ApiUser, HttpError}
+import vkdumper.ApiData.{ApiConvId, ApiMessageItem, ApiConversation, ApiError, ApiMessage, ApiUser, HttpError}
 import vkdumper.MockingCommon.CLQ
 
 import scala.collection.JavaConverters._
@@ -97,7 +97,7 @@ class FlowTest
   def pconvItem(msg: ApiMessage)(peers: Int*) =
     peers
       .map(p =>
-        ApiConvListItem(ApiConversation(ApiConvId("chat", p), None), msg))
+        ApiMessageItem(ApiConversation(ApiConvId("chat", p), None), msg))
       .toList
 
   def ppr(last: Int, rng: (Int, Int)*): CachedMsgProgress =
