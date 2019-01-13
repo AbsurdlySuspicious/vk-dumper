@@ -57,8 +57,11 @@ object ApiData extends LazyLogging {
 
   case class ResErrWrp(f: ResErr) extends Exception
 
-  def apiDecode[T: Manifest]: EarlyResp => Result[T] = { in =>
-    (in.body, in.code) match {
+  def apiDecode[T: Manifest]: EarlyResp => Result[T] =
+    in => apiDecodeStr(in.body, in.code)
+
+  def apiDecodeStr[T: Manifest](body: Either[String, String], htCode: Int): Result[T] = {
+    (body, htCode) match {
       case (Left(_), code) => HttpError(code)
       case (Right(raw), _) =>
         val body = parse(raw)
