@@ -25,7 +25,7 @@ VK дает возможность скачать "архив с данными"
 
 ### AUR
 
-Доступен пакет в AUR: TBD
+Доступен пакет в AUR: https://aur.archlinux.org/packages/vk-dumper/
 
 ### Как пользоваться?
 
