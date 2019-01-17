@@ -21,7 +21,7 @@ VK дает возможность скачать "архив с данными"
 
 ### Jar
 
-Готовые jar файлы есть на вкладке releases (link)
+Готовые jar файлы есть на [вкладке releases](https://github.com/AbsurdlySuspicious/vk-dumper/releases)
 
 ### AUR
 
@@ -84,6 +84,15 @@ https://oauth.vk.com/authorize?client_id=6277091&scope=notify%2Cfriends%2Cphotos
 
 Затем скопируйте символы из адресной строки начиная от `access_token=` и до `&` (не включая сам символ `&`) и поместите их в файл конфигурации. Строка должна состоять только из символов a-f 0-9, не копируйте лишнего. В этой ссылке использован appid от Kate mobile, но можно использовать любой другой
 
+## Формат
+
+Сообщения сохраняются в формате csv+json (фактически, json массив без [] в начале и конце)
+
+Схемы в формате case-классов:
+
+- `msg` - https://github.com/AbsurdlySuspicious/vk-dumper/blob/master/src/main/scala/vkdumper/Api.scala#L94
+- `clist` - https://github.com/AbsurdlySuspicious/vk-dumper/blob/master/src/main/scala/vkdumper/Api.scala#L127
+- `users` - https://github.com/AbsurdlySuspicious/vk-dumper/blob/master/src/main/scala/vkdumper/Api.scala#L85
 
 ## Сборка
 
